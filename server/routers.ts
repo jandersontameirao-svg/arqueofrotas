@@ -3,9 +3,24 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 
+// Feature routers
+import { unitsRouter } from "./routers/units";
+import { projectsRouter } from "./routers/projects";
+import { usersRouter } from "./routers/users";
+import { vehiclesRouter } from "./routers/vehicles";
+import { vehicleDocumentsRouter } from "./routers/vehicleDocuments";
+import { checklistTemplatesRouter } from "./routers/checklistTemplates";
+import { reservationsRouter } from "./routers/reservations";
+import { checklistsRouter } from "./routers/checklists";
+import { occurrencesRouter } from "./routers/occurrences";
+import { serviceOrdersRouter } from "./routers/serviceOrders";
+import { maintenancePlansRouter } from "./routers/maintenancePlans";
+import { auditLogsRouter } from "./routers/auditLogs";
+import { dashboardRouter } from "./routers/dashboard";
+
 export const appRouter = router({
-    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
+  
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -17,12 +32,20 @@ export const appRouter = router({
     }),
   }),
 
-  // TODO: add feature routers here, e.g.
-  // todo: router({
-  //   list: protectedProcedure.query(({ ctx }) =>
-  //     db.getUserTodos(ctx.user.id)
-  //   ),
-  // }),
+  // Feature routers
+  units: unitsRouter,
+  projects: projectsRouter,
+  users: usersRouter,
+  vehicles: vehiclesRouter,
+  vehicleDocuments: vehicleDocumentsRouter,
+  checklistTemplates: checklistTemplatesRouter,
+  reservations: reservationsRouter,
+  checklists: checklistsRouter,
+  occurrences: occurrencesRouter,
+  serviceOrders: serviceOrdersRouter,
+  maintenancePlans: maintenancePlansRouter,
+  auditLogs: auditLogsRouter,
+  dashboard: dashboardRouter,
 });
 
 export type AppRouter = typeof appRouter;

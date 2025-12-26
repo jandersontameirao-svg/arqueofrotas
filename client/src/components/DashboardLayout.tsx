@@ -4,6 +4,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -21,15 +22,38 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users } from "lucide-react";
+import {
+  LayoutDashboard,
+  LogOut,
+  PanelLeft,
+  Car,
+  Calendar,
+  ClipboardCheck,
+  AlertTriangle,
+  Wrench,
+  Users,
+  FileText,
+  Truck,
+} from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
+import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
+import { LABELS } from "@shared/const";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Page 1", path: "/" },
-  { icon: Users, label: "Page 2", path: "/some-path" },
+  { icon: LayoutDashboard, label: "Dashboard", path: "/" },
+  { icon: Car, label: "Veículos", path: "/vehicles" },
+  { icon: Calendar, label: "Reservas", path: "/reservations" },
+  { icon: ClipboardCheck, label: "Checklists", path: "/checklists" },
+  { icon: AlertTriangle, label: "Ocorrências", path: "/occurrences" },
+  { icon: Wrench, label: "Ordens de Serviço", path: "/service-orders" },
+];
+
+const adminMenuItems = [
+  { icon: Users, label: "Usuários", path: "/users" },
+  { icon: FileText, label: "Auditoria", path: "/audit" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -53,19 +77,22 @@ export default function DashboardLayout({
   }, [sidebarWidth]);
 
   if (loading) {
-    return <DashboardLayoutSkeleton />
+    return <DashboardLayoutSkeleton />;
   }
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
-          <div className="flex flex-col items-center gap-6">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-primary/5 to-primary/10">
+        <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full bg-card rounded-xl shadow-lg border">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+              <Truck className="h-8 w-8 text-primary" />
+            </div>
             <h1 className="text-2xl font-semibold tracking-tight text-center">
-              Sign in to continue
+              ArqueoFrotas
             </h1>
             <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Access to this dashboard requires authentication. Continue to launch the login flow.
+              Sistema de Gestão de Frotas do Grupo Arqueo. Faça login para continuar.
             </p>
           </div>
           <Button
@@ -75,7 +102,7 @@ export default function DashboardLayout({
             size="lg"
             className="w-full shadow-lg hover:shadow-xl transition-all"
           >
-            Sign in
+            Entrar
           </Button>
         </div>
       </div>
@@ -112,7 +139,11 @@ function DashboardLayoutContent({
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const activeMenuItem = menuItems.find(item => item.path === location);
+  const allMenuItems = user?.role === "admin" ? [...menuItems, ...adminMenuItems] : menuItems;
+  const activeMenuItem = allMenuItems.find((item) => {
+    if (item.path === "/") return location === "/";
+    return location.startsWith(item.path);
+  });
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -151,6 +182,8 @@ function DashboardLayoutContent({
     };
   }, [isResizing, setSidebarWidth]);
 
+  const roleLabel = user?.role ? LABELS.roles[user.role as keyof typeof LABELS.roles] : "";
+
   return (
     <>
       <div className="relative" ref={sidebarRef}>
@@ -170,8 +203,9 @@ function DashboardLayoutContent({
               </button>
               {!isCollapsed ? (
                 <div className="flex items-center gap-2 min-w-0">
+                  <Truck className="h-5 w-5 text-primary shrink-0" />
                   <span className="font-semibold tracking-tight truncate">
-                    Navigation
+                    ArqueoFrotas
                   </span>
                 </div>
               ) : null}
@@ -180,8 +214,11 @@ function DashboardLayoutContent({
 
           <SidebarContent className="gap-0">
             <SidebarMenu className="px-2 py-1">
-              {menuItems.map(item => {
-                const isActive = location === item.path;
+              {menuItems.map((item) => {
+                const isActive =
+                  item.path === "/"
+                    ? location === "/"
+                    : location.startsWith(item.path);
                 return (
                   <SidebarMenuItem key={item.path}>
                     <SidebarMenuButton
@@ -199,6 +236,40 @@ function DashboardLayoutContent({
                 );
               })}
             </SidebarMenu>
+
+            {/* Admin menu items */}
+            {user?.role === "admin" && (
+              <>
+                <div className="px-4 py-2">
+                  <div className="h-px bg-border" />
+                </div>
+                <SidebarMenu className="px-2 py-1">
+                  {!isCollapsed && (
+                    <p className="px-3 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Administração
+                    </p>
+                  )}
+                  {adminMenuItems.map((item) => {
+                    const isActive = location.startsWith(item.path);
+                    return (
+                      <SidebarMenuItem key={item.path}>
+                        <SidebarMenuButton
+                          isActive={isActive}
+                          onClick={() => setLocation(item.path)}
+                          tooltip={item.label}
+                          className={`h-10 transition-all font-normal`}
+                        >
+                          <item.icon
+                            className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
+                          />
+                          <span>{item.label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </>
+            )}
           </SidebarContent>
 
           <SidebarFooter className="p-3">
@@ -206,7 +277,7 @@ function DashboardLayoutContent({
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <Avatar className="h-9 w-9 border shrink-0">
-                    <AvatarFallback className="text-xs font-medium">
+                    <AvatarFallback className="text-xs font-medium bg-primary/10 text-primary">
                       {user?.name?.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
@@ -214,19 +285,26 @@ function DashboardLayoutContent({
                     <p className="text-sm font-medium truncate leading-none">
                       {user?.name || "-"}
                     </p>
-                    <p className="text-xs text-muted-foreground truncate mt-1.5">
-                      {user?.email || "-"}
-                    </p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                        {roleLabel}
+                      </Badge>
+                    </div>
                   </div>
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
+                <div className="px-2 py-1.5">
+                  <p className="text-sm font-medium">{user?.name}</p>
+                  <p className="text-xs text-muted-foreground">{user?.email}</p>
+                </div>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={logout}
                   className="cursor-pointer text-destructive focus:text-destructive"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sign out</span>
+                  <span>Sair</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -257,7 +335,7 @@ function DashboardLayoutContent({
             </div>
           </div>
         )}
-        <main className="flex-1 p-4">{children}</main>
+        <main className="flex-1 p-4 md:p-6">{children}</main>
       </SidebarInset>
     </>
   );
