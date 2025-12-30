@@ -19,7 +19,7 @@
 - [ ] CRUD de Unidades
 - [ ] CRUD de Projetos/Centros de Custo
 - [x] CRUD de Usuários com perfis (listagem e desativação)
-- [ ] CRUD de Templates de Checklist
+- [x] CRUD de Templates de Checklist
 
 ## Alocação / Reserva e Uso
 - [x] Agenda de reservas (veículo, usuário, data/hora, projeto, localidade)
@@ -94,3 +94,10 @@
 - [x] Adicionar logo do Grupo Arqueo no sistema
 - [x] Criar página de detalhes da Ocorrência
 - [x] Implementar formulário de Ordem de Serviço
+
+## Fase Final
+- [x] Página de detalhes da Ordem de Serviço
+- [x] CRUD de Templates de Checklist
+- [x] Exportação de relatórios em CSV
+- [x] Testar todas as funcionalidades
+- [x] Limpar banco de dados para produção

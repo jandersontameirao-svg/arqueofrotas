@@ -14,8 +14,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Car, Plus, Eye, Edit, FileText, Wrench } from "lucide-react";
+import { Car, Plus, Eye, Edit, FileText, Wrench, Download } from "lucide-react";
 import { LABELS, VEHICLE_TYPES, VEHICLE_STATUSES } from "@shared/const";
+import { exportToCSV } from "@/lib/export";
+import { toast } from "sonner";
 
 type Vehicle = {
   id: number;
@@ -42,6 +44,29 @@ export function VehiclesPage() {
     status: statusFilter !== "all" ? (statusFilter as typeof VEHICLE_STATUSES[number]) : undefined,
     vehicleType: typeFilter !== "all" ? (typeFilter as typeof VEHICLE_TYPES[number]) : undefined,
   });
+
+  const handleExportCSV = () => {
+    if (!vehicles || vehicles.length === 0) {
+      toast.error("Não há dados para exportar");
+      return;
+    }
+
+    exportToCSV(
+      vehicles as Vehicle[],
+      `veiculos_${new Date().toISOString().split("T")[0]}`,
+      [
+        { key: "plate", label: "Placa" },
+        { key: "model", label: "Modelo" },
+        { key: "brand", label: "Marca" },
+        { key: "year", label: "Ano" },
+        { key: "vehicleType", label: "Tipo" },
+        { key: "status", label: "Status" },
+        { key: "unitName", label: "Unidade" },
+        { key: "currentKm", label: "Km Atual" },
+      ]
+    );
+    toast.success("Relatório exportado com sucesso!");
+  };
 
   const columns: Column<Vehicle>[] = [
     {
@@ -129,12 +154,18 @@ export function VehiclesPage() {
         description="Gerencie a frota de veículos"
         icon={Car}
         actions={
-          canEdit && (
-            <Button onClick={() => navigate("/vehicles/new")}>
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Veículo
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleExportCSV}>
+              <Download className="h-4 w-4 mr-2" />
+              Exportar CSV
             </Button>
-          )
+            {canEdit && (
+              <Button onClick={() => navigate("/vehicles/new")}>
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Veículo
+              </Button>
+            )}
+          </div>
         }
       />
 

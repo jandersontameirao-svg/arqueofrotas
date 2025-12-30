@@ -32,7 +32,7 @@ import {
   Wrench,
   Users,
   FileText,
-  Truck,
+  ClipboardList,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -50,6 +50,7 @@ const menuItems = [
 ];
 
 const adminMenuItems = [
+  { icon: ClipboardList, label: "Templates Checklist", path: "/checklist-templates" },
   { icon: Users, label: "Usuários", path: "/users" },
   { icon: FileText, label: "Auditoria", path: "/audit" },
 ];

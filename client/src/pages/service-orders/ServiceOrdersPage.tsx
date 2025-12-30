@@ -15,10 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Wrench, Plus, Eye, Edit, CheckCircle, Play } from "lucide-react";
+import { Wrench, Plus, Eye, Edit, CheckCircle, Play, Download } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { LABELS, SERVICE_ORDER_STATUSES, MAINTENANCE_TYPES } from "@shared/const";
+import { exportToCSV, formatDateTimeForExport } from "@/lib/export";
+import { toast } from "sonner";
 
 type ServiceOrder = {
   id: number;
@@ -44,6 +46,36 @@ export function ServiceOrdersPage() {
     status: statusFilter !== "all" ? (statusFilter as typeof SERVICE_ORDER_STATUSES[number]) : undefined,
     maintenanceType: typeFilter !== "all" ? (typeFilter as typeof MAINTENANCE_TYPES[number]) : undefined,
   });
+
+  const handleExportCSV = () => {
+    if (!serviceOrders || serviceOrders.length === 0) {
+      toast.error("Não há dados para exportar");
+      return;
+    }
+
+    const dataForExport = serviceOrders.map((o) => ({
+      ...o,
+      maintenanceTypeLabel: LABELS.maintenanceTypes[o.maintenanceType as keyof typeof LABELS.maintenanceTypes] || o.maintenanceType,
+      statusLabel: LABELS.serviceOrderStatuses[o.status as keyof typeof LABELS.serviceOrderStatuses] || o.status,
+      openedAtFormatted: formatDateTimeForExport(o.openedAt),
+    }));
+
+    exportToCSV(
+      dataForExport,
+      `ordens_servico_${new Date().toISOString().split("T")[0]}`,
+      [
+        { key: "id", label: "OS #" },
+        { key: "vehiclePlate", label: "Placa" },
+        { key: "vehicleModel", label: "Modelo" },
+        { key: "maintenanceTypeLabel", label: "Tipo" },
+        { key: "statusLabel", label: "Status" },
+        { key: "description", label: "Descrição" },
+        { key: "assignedToName", label: "Responsável" },
+        { key: "openedAtFormatted", label: "Abertura" },
+      ]
+    );
+    toast.success("Relatório exportado com sucesso!");
+  };
 
   const columns: Column<ServiceOrder>[] = [
     {
@@ -138,12 +170,18 @@ export function ServiceOrdersPage() {
         description="Gerencie as ordens de serviço de manutenção"
         icon={Wrench}
         actions={
-          canCreate && (
-            <Button onClick={() => navigate("/service-orders/new")}>
-              <Plus className="h-4 w-4 mr-2" />
-              Nova OS
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleExportCSV}>
+              <Download className="h-4 w-4 mr-2" />
+              Exportar CSV
             </Button>
-          )
+            {canCreate && (
+              <Button onClick={() => navigate("/service-orders/new")}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nova OS
+              </Button>
+            )}
+          </div>
         }
       />
 

@@ -14,10 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertTriangle, Plus, Eye, Edit, CheckCircle } from "lucide-react";
+import { AlertTriangle, Plus, Eye, Edit, CheckCircle, Download } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { LABELS, OCCURRENCE_STATUSES, SEVERITY_LEVELS } from "@shared/const";
+import { exportToCSV, formatDateTimeForExport } from "@/lib/export";
+import { toast } from "sonner";
 
 type Occurrence = {
   id: number;
@@ -42,6 +44,36 @@ export function OccurrencesPage() {
     status: statusFilter !== "all" ? (statusFilter as typeof OCCURRENCE_STATUSES[number]) : undefined,
     severity: severityFilter !== "all" ? (severityFilter as typeof SEVERITY_LEVELS[number]) : undefined,
   });
+
+  const handleExportCSV = () => {
+    if (!occurrences || occurrences.length === 0) {
+      toast.error("Não há dados para exportar");
+      return;
+    }
+
+    const dataForExport = occurrences.map((o) => ({
+      ...o,
+      severityLabel: LABELS.severityLevels[o.severity as keyof typeof LABELS.severityLevels] || o.severity,
+      statusLabel: LABELS.occurrenceStatuses[o.status as keyof typeof LABELS.occurrenceStatuses] || o.status,
+      createdAtFormatted: formatDateTimeForExport(o.createdAt),
+    }));
+
+    exportToCSV(
+      dataForExport,
+      `ocorrencias_${new Date().toISOString().split("T")[0]}`,
+      [
+        { key: "id", label: "ID" },
+        { key: "vehiclePlate", label: "Placa" },
+        { key: "vehicleModel", label: "Modelo" },
+        { key: "severityLabel", label: "Severidade" },
+        { key: "statusLabel", label: "Status" },
+        { key: "description", label: "Descrição" },
+        { key: "reportedByName", label: "Reportado por" },
+        { key: "createdAtFormatted", label: "Data" },
+      ]
+    );
+    toast.success("Relatório exportado com sucesso!");
+  };
 
   const columns: Column<Occurrence>[] = [
     {
@@ -123,10 +155,16 @@ export function OccurrencesPage() {
         description="Gerencie ocorrências e avarias dos veículos"
         icon={AlertTriangle}
         actions={
-          <Button onClick={() => navigate("/occurrences/new")}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Ocorrência
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleExportCSV}>
+              <Download className="h-4 w-4 mr-2" />
+              Exportar CSV
+            </Button>
+            <Button onClick={() => navigate("/occurrences/new")}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Ocorrência
+            </Button>
+          </div>
         }
       />
 
