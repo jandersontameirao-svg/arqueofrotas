@@ -24,6 +24,7 @@ import { toast } from "sonner";
 
 type ServiceOrder = {
   id: number;
+  osCode: string | null;
   vehiclePlate: string;
   vehicleModel: string;
   maintenanceType: string;
@@ -55,6 +56,7 @@ export function ServiceOrdersPage() {
 
     const dataForExport = serviceOrders.map((o) => ({
       ...o,
+      osCodeFormatted: o.osCode || `#${o.id}`,
       maintenanceTypeLabel: LABELS.maintenanceTypes[o.maintenanceType as keyof typeof LABELS.maintenanceTypes] || o.maintenanceType,
       statusLabel: LABELS.serviceOrderStatuses[o.status as keyof typeof LABELS.serviceOrderStatuses] || o.status,
       openedAtFormatted: formatDateTimeForExport(o.openedAt),
@@ -64,7 +66,7 @@ export function ServiceOrdersPage() {
       dataForExport,
       `ordens_servico_${new Date().toISOString().split("T")[0]}`,
       [
-        { key: "id", label: "OS #" },
+        { key: "osCodeFormatted", label: "Código OS" },
         { key: "vehiclePlate", label: "Placa" },
         { key: "vehicleModel", label: "Modelo" },
         { key: "maintenanceTypeLabel", label: "Tipo" },
@@ -79,10 +81,14 @@ export function ServiceOrdersPage() {
 
   const columns: Column<ServiceOrder>[] = [
     {
-      key: "id",
-      header: "OS #",
+      key: "osCode",
+      header: "Código OS",
       sortable: true,
-      cell: (row) => <span className="font-mono font-medium">#{row.id}</span>,
+      cell: (row) => (
+        <span className="font-mono font-medium text-primary">
+          {row.osCode || `#${row.id}`}
+        </span>
+      ),
     },
     {
       key: "vehiclePlate",
@@ -230,8 +236,8 @@ export function ServiceOrdersPage() {
         actions={actions}
         isLoading={isLoading}
         searchable
-        searchPlaceholder="Buscar por veículo ou descrição..."
-        searchKeys={["vehiclePlate", "vehicleModel", "description", "assignedToName"]}
+        searchPlaceholder="Buscar por código, veículo ou descrição..."
+        searchKeys={["osCode", "vehiclePlate", "vehicleModel", "description", "assignedToName"]}
         onRowClick={(row) => navigate(`/service-orders/${row.id}`)}
         emptyMessage="Nenhuma ordem de serviço encontrada"
       />

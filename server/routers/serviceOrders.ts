@@ -52,6 +52,7 @@ export const serviceOrdersRouter = router({
       const result = await db
         .select({
           id: serviceOrders.id,
+          osCode: serviceOrders.osCode,
           vehicleId: serviceOrders.vehicleId,
           vehiclePlate: vehicles.plate,
           vehicleModel: vehicles.model,
@@ -84,6 +85,7 @@ export const serviceOrdersRouter = router({
     const result = await db
       .select({
         id: serviceOrders.id,
+        osCode: serviceOrders.osCode,
         vehicleId: serviceOrders.vehicleId,
         vehiclePlate: vehicles.plate,
         vehicleModel: vehicles.model,
@@ -118,6 +120,7 @@ export const serviceOrdersRouter = router({
       const [so] = await db
         .select({
           id: serviceOrders.id,
+          osCode: serviceOrders.osCode,
           vehicleId: serviceOrders.vehicleId,
           vehiclePlate: vehicles.plate,
           vehicleModel: vehicles.model,
@@ -208,8 +211,25 @@ export const serviceOrdersRouter = router({
         });
       }
 
+      // Generate unique OS code: OS-NNNN/YYYY
+      const currentYear = new Date().getFullYear();
+      const [countResult] = await db
+        .select({ count: serviceOrders.id })
+        .from(serviceOrders)
+        .where(and(
+          eq(serviceOrders.openedAt, serviceOrders.openedAt) // Just to use the query builder
+        ));
+      
+      // Count existing OS for this year to generate sequential number
+      const existingCount = await db
+        .select({ id: serviceOrders.id })
+        .from(serviceOrders);
+      const nextNumber = existingCount.length + 1;
+      const osCode = `OS-${String(nextNumber).padStart(4, '0')}/${currentYear}`;
+
       const result = await db.insert(serviceOrders).values({
         ...input,
+        osCode,
         status: "aberta",
         openedById: ctx.user.id,
         kmAtOpen: vehicle.currentKm,
@@ -251,7 +271,7 @@ export const serviceOrdersRouter = router({
         ...getRequestInfo(ctx.req),
       });
 
-      return { id: insertId };
+      return { id: insertId, osCode };
     }),
 
   update: manutencaoProcedure

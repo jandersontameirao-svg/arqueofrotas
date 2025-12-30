@@ -316,14 +316,14 @@ export function VehicleFormPage() {
             <div className="space-y-2">
               <Label htmlFor="unitId">Unidade</Label>
               <Select
-                value={formData.unitId?.toString() ?? ""}
-                onValueChange={(v) => handleChange("unitId", v ? Number(v) : undefined)}
+                value={formData.unitId?.toString() ?? "none"}
+                onValueChange={(v) => handleChange("unitId", v && v !== "none" ? Number(v) : undefined)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione a unidade" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhuma</SelectItem>
+                  <SelectItem value="none">Nenhuma</SelectItem>
                   {units?.map((unit) => (
                     <SelectItem key={unit.id} value={unit.id.toString()}>
                       {unit.name}

@@ -405,6 +405,7 @@ export type InsertVehicleMaintenanceStatus = typeof vehicleMaintenanceStatus.$in
 
 export const serviceOrders = mysqlTable("serviceOrders", {
   id: int("id").autoincrement().primaryKey(),
+  osCode: varchar("osCode", { length: 20 }).unique(), // Código único: OS-NNNN/YYYY
   vehicleId: int("vehicleId").notNull(),
   maintenanceType: maintenanceTypeEnum.notNull(),
   maintenancePlanId: int("maintenancePlanId"), // Se preventiva

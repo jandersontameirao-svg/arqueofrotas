@@ -174,7 +174,7 @@ export function ServiceOrderDetailPage() {
           </Link>
         </Button>
         <PageHeader
-          title={`OS #${serviceOrder.id}`}
+          title={serviceOrder.osCode || `OS #${serviceOrder.id}`}
           description={`${serviceOrder.vehiclePlate} - ${serviceOrder.vehicleModel}`}
           icon={Wrench}
         />

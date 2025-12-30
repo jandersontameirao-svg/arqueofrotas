@@ -101,3 +101,8 @@
 - [x] Exportação de relatórios em CSV
 - [x] Testar todas as funcionalidades
 - [x] Limpar banco de dados para produção
+
+## Correções
+- [x] Corrigir cadastro de nova Ordem de Serviço
+- [x] Implementar identificação única de OS no formato OS-NNNN/YYYY
+- [x] Corrigir SelectItem com valor vazio em formulários

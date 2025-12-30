@@ -81,8 +81,8 @@ export function ServiceOrderFormPage() {
 
   const createMutation = trpc.serviceOrders.create.useMutation({
     onSuccess: (data) => {
-      toast.success("Ordem de serviço criada com sucesso!");
-      navigate(`/service-orders`);
+      toast.success(`Ordem de serviço ${data.osCode} criada com sucesso!`);
+      navigate(`/service-orders/${data.id}`);
     },
     onError: (error) => {
       toast.error(error.message || "Erro ao criar ordem de serviço");
@@ -123,7 +123,7 @@ export function ServiceOrderFormPage() {
       maintenanceType: maintenanceType as "preventiva" | "corretiva",
       priority: priority as "baixa" | "media" | "alta",
       description,
-      assignedToId: assignedToId ? parseInt(assignedToId) : undefined,
+      assignedToId: assignedToId && assignedToId !== "none" ? parseInt(assignedToId) : undefined,
       supplierName: supplierName || undefined,
       supplierContact: supplierContact || undefined,
       occurrenceId: preselectedOccurrenceId ? parseInt(preselectedOccurrenceId) : undefined,
@@ -351,7 +351,7 @@ export function ServiceOrderFormPage() {
                       <SelectValue placeholder="Selecione (opcional)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Não atribuído</SelectItem>
+                      <SelectItem value="none">Não atribuído</SelectItem>
                       {filteredUsers?.map((u) => (
                         <SelectItem key={u.id} value={u.id.toString()}>
                           {u.name}
