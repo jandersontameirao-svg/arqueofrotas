@@ -15,11 +15,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Wrench, Plus, Eye, Edit, CheckCircle, Play, Download } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Wrench, Plus, Eye, Edit, CheckCircle, Play, Download, FileText, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { LABELS, SERVICE_ORDER_STATUSES, MAINTENANCE_TYPES } from "@shared/const";
-import { exportToCSV, formatDateTimeForExport } from "@/lib/export";
+import { exportToCSV, exportToPDF, formatDateTimeForExport } from "@/lib/export";
 import { toast } from "sonner";
 
 type ServiceOrder = {
@@ -76,7 +82,46 @@ export function ServiceOrdersPage() {
         { key: "openedAtFormatted", label: "Abertura" },
       ]
     );
-    toast.success("Relatório exportado com sucesso!");
+    toast.success("Relatório CSV exportado com sucesso!");
+  };
+
+  const handleExportPDF = async () => {
+    if (!serviceOrders || serviceOrders.length === 0) {
+      toast.error("Não há dados para exportar");
+      return;
+    }
+
+    const dataForPDF = serviceOrders.map((o) => ({
+      osCode: o.osCode || `#${o.id}`,
+      vehiclePlate: o.vehiclePlate,
+      vehicleModel: o.vehicleModel,
+      maintenanceType: LABELS.maintenanceTypes[o.maintenanceType as keyof typeof LABELS.maintenanceTypes] || o.maintenanceType,
+      status: LABELS.serviceOrderStatuses[o.status as keyof typeof LABELS.serviceOrderStatuses] || o.status,
+      description: o.description.length > 40 ? o.description.substring(0, 40) + "..." : o.description,
+      assignedToName: o.assignedToName ?? "-",
+      openedAt: format(new Date(o.openedAt), "dd/MM/yyyy", { locale: ptBR }),
+    }));
+
+    await exportToPDF(
+      dataForPDF,
+      `ordens_servico_${new Date().toISOString().split("T")[0]}`,
+      "Relatório de Ordens de Serviço",
+      [
+        { key: "osCode", label: "Código OS", width: 25 },
+        { key: "vehiclePlate", label: "Placa", width: 20 },
+        { key: "vehicleModel", label: "Modelo", width: 30 },
+        { key: "maintenanceType", label: "Tipo", width: 25 },
+        { key: "status", label: "Status", width: 25 },
+        { key: "description", label: "Descrição", width: 45 },
+        { key: "assignedToName", label: "Responsável", width: 30 },
+        { key: "openedAt", label: "Abertura", width: 22 },
+      ],
+      {
+        subtitle: `Total: ${serviceOrders.length} ordens de serviço`,
+        orientation: "landscape",
+      }
+    );
+    toast.success("Relatório PDF exportado com sucesso!");
   };
 
   const columns: Column<ServiceOrder>[] = [
@@ -177,10 +222,25 @@ export function ServiceOrdersPage() {
         icon={Wrench}
         actions={
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handleExportCSV}>
-              <Download className="h-4 w-4 mr-2" />
-              Exportar CSV
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Download className="h-4 w-4 mr-2" />
+                  Exportar
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleExportCSV}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Exportar CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportPDF}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Exportar PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {canCreate && (
               <Button onClick={() => navigate("/service-orders/new")}>
                 <Plus className="h-4 w-4 mr-2" />

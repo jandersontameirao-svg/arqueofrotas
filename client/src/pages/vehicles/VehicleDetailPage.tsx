@@ -1,4 +1,5 @@
 import { useLocation, useParams } from "wouter";
+import { useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { useUser, isGestor } from "@/lib/auth";
 import { PageHeader, Breadcrumb } from "@/components/PageHeader";
@@ -15,20 +16,38 @@ import {
   AlertTriangle,
   ClipboardCheck,
   Loader2,
-  MapPin,
   Gauge,
   User,
   Building2,
+  Camera,
+  Upload,
+  X,
+  Image as ImageIcon,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { LABELS } from "@shared/const";
+import { toast } from "sonner";
+
+const PHOTO_TYPES = [
+  { key: "frente", label: "Frente" },
+  { key: "traseira", label: "Traseira" },
+  { key: "lateral_esquerda", label: "Lateral Esquerda" },
+  { key: "lateral_direita", label: "Lateral Direita" },
+  { key: "interior", label: "Interior" },
+] as const;
+
+type PhotoType = typeof PHOTO_TYPES[number]["key"];
 
 export function VehicleDetailPage() {
   const [, navigate] = useLocation();
   const { id } = useParams<{ id: string }>();
   const { user } = useUser();
   const canEdit = isGestor(user);
+  
+  const [uploadingPhoto, setUploadingPhoto] = useState<PhotoType | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedPhotoType, setSelectedPhotoType] = useState<PhotoType | null>(null);
 
   const { data: vehicle, isLoading } = trpc.vehicles.getById.useQuery(
     { id: Number(id) },
@@ -44,6 +63,79 @@ export function VehicleDetailPage() {
     { vehicleId: Number(id), limit: 20 },
     { enabled: Boolean(id) }
   );
+
+  const { data: photos, refetch: refetchPhotos } = trpc.vehiclePhotos.listByVehicle.useQuery(
+    { vehicleId: Number(id) },
+    { enabled: Boolean(id) }
+  );
+
+  const uploadMutation = trpc.vehiclePhotos.upsert.useMutation({
+    onSuccess: () => {
+      toast.success("Foto enviada com sucesso!");
+      refetchPhotos();
+      setUploadingPhoto(null);
+    },
+    onError: (error) => {
+      toast.error("Erro ao enviar foto", { description: error.message });
+      setUploadingPhoto(null);
+    },
+  });
+
+  const deleteMutation = trpc.vehiclePhotos.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Foto removida com sucesso!");
+      refetchPhotos();
+    },
+    onError: (error) => {
+      toast.error("Erro ao remover foto", { description: error.message });
+    },
+  });
+
+  const handlePhotoUpload = async (photoType: PhotoType) => {
+    setSelectedPhotoType(photoType);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedPhotoType) return;
+
+    setUploadingPhoto(selectedPhotoType);
+
+    try {
+      // Converter para base64 e fazer upload via S3
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Falha no upload");
+      }
+
+      const { url } = await response.json();
+
+      await uploadMutation.mutateAsync({
+        vehicleId: Number(id),
+        photoType: selectedPhotoType,
+        photoUrl: url,
+      });
+    } catch (error) {
+      toast.error("Erro ao enviar foto");
+      setUploadingPhoto(null);
+    }
+
+    // Limpar input
+    e.target.value = "";
+    setSelectedPhotoType(null);
+  };
+
+  const getPhotoByType = (type: PhotoType) => {
+    return photos?.find((p) => p.photoType === type);
+  };
 
   if (isLoading) {
     return (
@@ -66,6 +158,14 @@ export function VehicleDetailPage() {
 
   return (
     <div className="space-y-6">
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        accept="image/*"
+        onChange={handleFileChange}
+      />
+
       <Breadcrumb
         items={[
           { label: "Veículos", href: "/vehicles" },
@@ -158,6 +258,10 @@ export function VehicleDetailPage() {
       <Tabs defaultValue="info" className="space-y-4">
         <TabsList>
           <TabsTrigger value="info">Informações</TabsTrigger>
+          <TabsTrigger value="photos">
+            <Camera className="h-4 w-4 mr-2" />
+            Fotos ({photos?.length ?? 0}/5)
+          </TabsTrigger>
           <TabsTrigger value="documents">
             Documentos ({documents?.length ?? 0})
           </TabsTrigger>
@@ -231,6 +335,81 @@ export function VehicleDetailPage() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* Nova aba de Fotos */}
+        <TabsContent value="photos" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Camera className="h-5 w-5" />
+                Fotos do Status Atual do Veículo
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-6">
+                Registre fotos do veículo para documentar seu estado atual. Essas fotos servem como referência para comparação em checklists e ocorrências.
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {PHOTO_TYPES.map(({ key, label }) => {
+                  const photo = getPhotoByType(key);
+                  const isUploading = uploadingPhoto === key;
+
+                  return (
+                    <div key={key} className="relative">
+                      <p className="text-sm font-medium mb-2 text-center">{label}</p>
+                      <div className="aspect-square rounded-lg border-2 border-dashed border-muted-foreground/25 overflow-hidden bg-muted/50 relative">
+                        {photo ? (
+                          <>
+                            <img
+                              src={photo.photoUrl}
+                              alt={label}
+                              className="w-full h-full object-cover"
+                            />
+                            {canEdit && (
+                              <div className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => handlePhotoUpload(key)}
+                                >
+                                  <Upload className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => deleteMutation.mutate({ id: photo.id })}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => canEdit && handlePhotoUpload(key)}
+                            disabled={!canEdit || isUploading}
+                            className="w-full h-full flex flex-col items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                          >
+                            {isUploading ? (
+                              <Loader2 className="h-8 w-8 animate-spin" />
+                            ) : (
+                              <>
+                                <ImageIcon className="h-8 w-8 mb-2" />
+                                <span className="text-xs">
+                                  {canEdit ? "Clique para adicionar" : "Sem foto"}
+                                </span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="documents" className="space-y-4">
@@ -327,7 +506,7 @@ export function VehicleDetailPage() {
               {timeline && timeline.length > 0 ? (
                 <div className="relative space-y-0">
                   <div className="absolute left-4 top-0 bottom-0 w-px bg-border" />
-                  {timeline.map((item, index) => (
+                  {timeline.map((item) => (
                     <div key={`${item.type}-${item.id}`} className="relative pl-10 pb-6 last:pb-0">
                       <div
                         className={`absolute left-2 w-5 h-5 rounded-full border-2 bg-background flex items-center justify-center ${

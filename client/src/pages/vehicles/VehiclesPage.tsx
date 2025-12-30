@@ -14,9 +14,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Car, Plus, Eye, Edit, FileText, Wrench, Download } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Car, Plus, Eye, Edit, FileText, Wrench, Download, ChevronDown } from "lucide-react";
 import { LABELS, VEHICLE_TYPES, VEHICLE_STATUSES } from "@shared/const";
-import { exportToCSV } from "@/lib/export";
+import { exportToCSV, exportToPDF } from "@/lib/export";
 import { toast } from "sonner";
 
 type Vehicle = {
@@ -65,7 +71,45 @@ export function VehiclesPage() {
         { key: "currentKm", label: "Km Atual" },
       ]
     );
-    toast.success("Relatório exportado com sucesso!");
+    toast.success("Relatório CSV exportado com sucesso!");
+  };
+
+  const handleExportPDF = async () => {
+    if (!vehicles || vehicles.length === 0) {
+      toast.error("Não há dados para exportar");
+      return;
+    }
+
+    // Preparar dados com labels traduzidos
+    const dataForPDF = vehicles.map((v) => ({
+      ...v,
+      vehicleType: LABELS.vehicleTypes[v.vehicleType as keyof typeof LABELS.vehicleTypes] ?? v.vehicleType,
+      status: LABELS.vehicleStatuses[v.status as keyof typeof LABELS.vehicleStatuses] ?? v.status,
+      currentKm: v.currentKm ? `${v.currentKm.toLocaleString("pt-BR")} km` : "-",
+      unitName: v.unitName ?? "-",
+      brand: v.brand ?? "-",
+    }));
+
+    await exportToPDF(
+      dataForPDF,
+      `veiculos_${new Date().toISOString().split("T")[0]}`,
+      "Relatório de Veículos",
+      [
+        { key: "plate", label: "Placa", width: 25 },
+        { key: "model", label: "Modelo", width: 35 },
+        { key: "brand", label: "Marca", width: 25 },
+        { key: "year", label: "Ano", width: 15 },
+        { key: "vehicleType", label: "Tipo", width: 25 },
+        { key: "status", label: "Status", width: 25 },
+        { key: "unitName", label: "Unidade", width: 25 },
+        { key: "currentKm", label: "Km Atual", width: 25 },
+      ],
+      {
+        subtitle: `Total: ${vehicles.length} veículos`,
+        orientation: "landscape",
+      }
+    );
+    toast.success("Relatório PDF exportado com sucesso!");
   };
 
   const columns: Column<Vehicle>[] = [
@@ -155,10 +199,25 @@ export function VehiclesPage() {
         icon={Car}
         actions={
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handleExportCSV}>
-              <Download className="h-4 w-4 mr-2" />
-              Exportar CSV
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Download className="h-4 w-4 mr-2" />
+                  Exportar
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleExportCSV}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Exportar CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportPDF}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Exportar PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {canEdit && (
               <Button onClick={() => navigate("/vehicles/new")}>
                 <Plus className="h-4 w-4 mr-2" />

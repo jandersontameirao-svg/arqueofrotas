@@ -719,3 +719,39 @@ export const serviceOrderAttachmentsRelations = relations(serviceOrderAttachment
     references: [users.id],
   }),
 }));
+
+
+// ============================================
+// VEHICLE PHOTOS TABLE (Fotos do Status do Veículo)
+// ============================================
+
+export const vehiclePhotos = mysqlTable("vehiclePhotos", {
+  id: int("id").autoincrement().primaryKey(),
+  vehicleId: int("vehicleId").notNull(),
+  photoUrl: text("photoUrl").notNull(),
+  photoType: mysqlEnum("photoType", [
+    "frente",
+    "traseira",
+    "lateral_esquerda",
+    "lateral_direita",
+    "interior",
+  ]).notNull(),
+  description: varchar("description", { length: 255 }),
+  uploadedById: int("uploadedById").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type VehiclePhoto = typeof vehiclePhotos.$inferSelect;
+export type InsertVehiclePhoto = typeof vehiclePhotos.$inferInsert;
+
+export const vehiclePhotosRelations = relations(vehiclePhotos, ({ one }) => ({
+  vehicle: one(vehicles, {
+    fields: [vehiclePhotos.vehicleId],
+    references: [vehicles.id],
+  }),
+  uploadedBy: one(users, {
+    fields: [vehiclePhotos.uploadedById],
+    references: [users.id],
+  }),
+}));

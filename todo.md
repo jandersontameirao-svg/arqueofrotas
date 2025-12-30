@@ -106,3 +106,8 @@
 - [x] Corrigir cadastro de nova Ordem de Serviço
 - [x] Implementar identificação única de OS no formato OS-NNNN/YYYY
 - [x] Corrigir SelectItem com valor vazio em formulários
+
+## Novas Funcionalidades
+- [x] Seção de 5 fotos do status atual no cadastro de veículos
+- [x] Exportação PDF com logo e identidade visual do Grupo Arqueo
+- [ ] Apresentação de slides para onboarding dos colaboradores

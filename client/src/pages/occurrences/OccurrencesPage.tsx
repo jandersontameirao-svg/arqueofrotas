@@ -14,11 +14,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertTriangle, Plus, Eye, Edit, CheckCircle, Download } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { AlertTriangle, Plus, Eye, Edit, CheckCircle, Download, FileText, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { LABELS, OCCURRENCE_STATUSES, SEVERITY_LEVELS } from "@shared/const";
-import { exportToCSV, formatDateTimeForExport } from "@/lib/export";
+import { exportToCSV, exportToPDF, formatDateTimeForExport } from "@/lib/export";
 import { toast } from "sonner";
 
 type Occurrence = {
@@ -72,7 +78,46 @@ export function OccurrencesPage() {
         { key: "createdAtFormatted", label: "Data" },
       ]
     );
-    toast.success("Relatório exportado com sucesso!");
+    toast.success("Relatório CSV exportado com sucesso!");
+  };
+
+  const handleExportPDF = async () => {
+    if (!occurrences || occurrences.length === 0) {
+      toast.error("Não há dados para exportar");
+      return;
+    }
+
+    const dataForPDF = occurrences.map((o) => ({
+      id: `#${o.id}`,
+      vehiclePlate: o.vehiclePlate,
+      vehicleModel: o.vehicleModel,
+      severity: LABELS.severityLevels[o.severity as keyof typeof LABELS.severityLevels] || o.severity,
+      status: LABELS.occurrenceStatuses[o.status as keyof typeof LABELS.occurrenceStatuses] || o.status,
+      description: o.description.length > 50 ? o.description.substring(0, 50) + "..." : o.description,
+      reportedByName: o.reportedByName ?? "-",
+      createdAt: format(new Date(o.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR }),
+    }));
+
+    await exportToPDF(
+      dataForPDF,
+      `ocorrencias_${new Date().toISOString().split("T")[0]}`,
+      "Relatório de Ocorrências",
+      [
+        { key: "id", label: "ID", width: 15 },
+        { key: "vehiclePlate", label: "Placa", width: 20 },
+        { key: "vehicleModel", label: "Modelo", width: 30 },
+        { key: "severity", label: "Severidade", width: 20 },
+        { key: "status", label: "Status", width: 25 },
+        { key: "description", label: "Descrição", width: 50 },
+        { key: "reportedByName", label: "Reportado por", width: 30 },
+        { key: "createdAt", label: "Data", width: 30 },
+      ],
+      {
+        subtitle: `Total: ${occurrences.length} ocorrências`,
+        orientation: "landscape",
+      }
+    );
+    toast.success("Relatório PDF exportado com sucesso!");
   };
 
   const columns: Column<Occurrence>[] = [
@@ -156,10 +201,25 @@ export function OccurrencesPage() {
         icon={AlertTriangle}
         actions={
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handleExportCSV}>
-              <Download className="h-4 w-4 mr-2" />
-              Exportar CSV
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Download className="h-4 w-4 mr-2" />
+                  Exportar
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleExportCSV}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Exportar CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportPDF}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Exportar PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button onClick={() => navigate("/occurrences/new")}>
               <Plus className="h-4 w-4 mr-2" />
               Nova Ocorrência

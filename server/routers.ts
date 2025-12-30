@@ -16,6 +16,7 @@ import { serviceOrdersRouter } from "./routers/serviceOrders";
 import { maintenancePlansRouter } from "./routers/maintenancePlans";
 import { auditLogsRouter } from "./routers/auditLogs";
 import { dashboardRouter } from "./routers/dashboard";
+import { vehiclePhotosRouter } from "./routers/vehiclePhotos";
 
 export const appRouter = router({
   system: systemRouter,
@@ -44,6 +45,7 @@ export const appRouter = router({
   maintenancePlans: maintenancePlansRouter,
   auditLogs: auditLogsRouter,
   dashboard: dashboardRouter,
+  vehiclePhotos: vehiclePhotosRouter,
 });
 
 export type AppRouter = typeof appRouter;
