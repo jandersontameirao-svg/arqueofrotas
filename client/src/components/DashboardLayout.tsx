@@ -83,8 +83,8 @@ export default function DashboardLayout({
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-primary/5 to-primary/10">
         <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full bg-card rounded-xl shadow-lg border">
           <div className="flex flex-col items-center gap-4">
-            <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-              <Truck className="h-8 w-8 text-primary" />
+            <div className="h-16 w-16 rounded-full bg-white flex items-center justify-center p-2">
+              <img src="/logo.svg" alt="Grupo Arqueo" className="h-12 w-12" />
             </div>
             <h1 className="text-2xl font-semibold tracking-tight text-center">
               ArqueoFrotas
@@ -201,7 +201,7 @@ function DashboardLayoutContent({
               </button>
               {!isCollapsed ? (
                 <div className="flex items-center gap-2 min-w-0">
-                  <Truck className="h-5 w-5 text-primary shrink-0" />
+                  <img src="/logo.svg" alt="Grupo Arqueo" className="h-6 w-6 shrink-0" />
                   <span className="font-semibold tracking-tight truncate">
                     ArqueoFrotas
                   </span>

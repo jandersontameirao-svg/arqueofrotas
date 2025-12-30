@@ -91,3 +91,6 @@
 ## Alterações Recentes
 - [x] Remover módulo de Reservas (frontend e backend)
 - [x] Atualizar paleta de cores para Grupo Arqueo (laranja, bordô, amarelo, azul)
+- [x] Adicionar logo do Grupo Arqueo no sistema
+- [x] Criar página de detalhes da Ocorrência
+- [x] Implementar formulário de Ordem de Serviço

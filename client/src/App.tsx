@@ -17,7 +17,9 @@ import { ChecklistsPage } from "@/pages/checklists/ChecklistsPage";
 import { ChecklistExecutePage } from "@/pages/checklists/ChecklistExecutePage";
 import { OccurrencesPage } from "@/pages/occurrences/OccurrencesPage";
 import { OccurrenceFormPage } from "@/pages/occurrences/OccurrenceFormPage";
+import { OccurrenceDetailPage } from "@/pages/occurrences/OccurrenceDetailPage";
 import { ServiceOrdersPage } from "@/pages/service-orders/ServiceOrdersPage";
+import { ServiceOrderFormPage } from "@/pages/service-orders/ServiceOrderFormPage";
 import { UsersPage } from "@/pages/users/UsersPage";
 import { AuditLogsPage } from "@/pages/audit/AuditLogsPage";
 
@@ -78,9 +80,11 @@ function AppRoutes() {
           {/* Occurrences */}
           <Route path="/occurrences" component={OccurrencesPage} />
           <Route path="/occurrences/new" component={OccurrenceFormPage} />
+          <Route path="/occurrences/:id" component={OccurrenceDetailPage} />
 
           {/* Service Orders */}
           <Route path="/service-orders" component={ServiceOrdersPage} />
+          <Route path="/service-orders/new" component={ServiceOrderFormPage} />
 
           {/* Users - Admin only */}
           <Route path="/users">
