@@ -10,7 +10,6 @@ import { usersRouter } from "./routers/users";
 import { vehiclesRouter } from "./routers/vehicles";
 import { vehicleDocumentsRouter } from "./routers/vehicleDocuments";
 import { checklistTemplatesRouter } from "./routers/checklistTemplates";
-import { reservationsRouter } from "./routers/reservations";
 import { checklistsRouter } from "./routers/checklists";
 import { occurrencesRouter } from "./routers/occurrences";
 import { serviceOrdersRouter } from "./routers/serviceOrders";
@@ -39,7 +38,6 @@ export const appRouter = router({
   vehicles: vehiclesRouter,
   vehicleDocuments: vehicleDocumentsRouter,
   checklistTemplates: checklistTemplatesRouter,
-  reservations: reservationsRouter,
   checklists: checklistsRouter,
   occurrences: occurrencesRouter,
   serviceOrders: serviceOrdersRouter,

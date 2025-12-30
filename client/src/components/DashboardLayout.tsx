@@ -27,7 +27,6 @@ import {
   LogOut,
   PanelLeft,
   Car,
-  Calendar,
   ClipboardCheck,
   AlertTriangle,
   Wrench,
@@ -45,7 +44,6 @@ import { LABELS } from "@shared/const";
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: Car, label: "Veículos", path: "/vehicles" },
-  { icon: Calendar, label: "Reservas", path: "/reservations" },
   { icon: ClipboardCheck, label: "Checklists", path: "/checklists" },
   { icon: AlertTriangle, label: "Ocorrências", path: "/occurrences" },
   { icon: Wrench, label: "Ordens de Serviço", path: "/service-orders" },

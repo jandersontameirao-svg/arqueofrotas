@@ -13,8 +13,6 @@ import { DashboardPage } from "@/pages/dashboard/DashboardPage";
 import { VehiclesPage } from "@/pages/vehicles/VehiclesPage";
 import { VehicleFormPage } from "@/pages/vehicles/VehicleFormPage";
 import { VehicleDetailPage } from "@/pages/vehicles/VehicleDetailPage";
-import { ReservationsPage } from "@/pages/reservations/ReservationsPage";
-import { ReservationFormPage } from "@/pages/reservations/ReservationFormPage";
 import { ChecklistsPage } from "@/pages/checklists/ChecklistsPage";
 import { ChecklistExecutePage } from "@/pages/checklists/ChecklistExecutePage";
 import { OccurrencesPage } from "@/pages/occurrences/OccurrencesPage";
@@ -72,10 +70,6 @@ function AppRoutes() {
           <Route path="/vehicles/new" component={VehicleFormPage} />
           <Route path="/vehicles/:id" component={VehicleDetailPage} />
           <Route path="/vehicles/:id/edit" component={VehicleFormPage} />
-
-          {/* Reservations */}
-          <Route path="/reservations" component={ReservationsPage} />
-          <Route path="/reservations/new" component={ReservationFormPage} />
 
           {/* Checklists */}
           <Route path="/checklists" component={ChecklistsPage} />

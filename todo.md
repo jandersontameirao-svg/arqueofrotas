@@ -87,3 +87,7 @@
 - [ ] Endpoints REST e permissões
 - [ ] Wireframes textuais
 - [ ] Instruções de teste e deploy
+
+## Alterações Recentes
+- [x] Remover módulo de Reservas (frontend e backend)
+- [x] Atualizar paleta de cores para Grupo Arqueo (laranja, bordô, amarelo, azul)

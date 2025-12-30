@@ -15,20 +15,21 @@ interface StatCardProps {
   className?: string;
 }
 
+// Grupo Arqueo colors: Laranja, Bordô, Amarelo, Azul
 const variantStyles = {
   default: "bg-card",
-  success: "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800",
-  warning: "bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-800",
-  danger: "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800",
-  info: "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800",
+  success: "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800",
+  warning: "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800",
+  danger: "bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800",
+  info: "bg-sky-50 dark:bg-sky-950/20 border-sky-200 dark:border-sky-800",
 };
 
 const iconVariantStyles = {
   default: "text-muted-foreground",
-  success: "text-green-600 dark:text-green-400",
-  warning: "text-yellow-600 dark:text-yellow-400",
-  danger: "text-red-600 dark:text-red-400",
-  info: "text-blue-600 dark:text-blue-400",
+  success: "text-emerald-600 dark:text-emerald-400",
+  warning: "text-amber-600 dark:text-amber-400",
+  danger: "text-rose-600 dark:text-rose-400",
+  info: "text-sky-600 dark:text-sky-400",
 };
 
 export function StatCard({
@@ -59,7 +60,7 @@ export function StatCard({
           <p
             className={cn(
               "text-xs mt-1",
-              trend.isPositive ? "text-green-600" : "text-red-600"
+              trend.isPositive ? "text-emerald-600" : "text-rose-600"
             )}
           >
             {trend.isPositive ? "↑" : "↓"} {Math.abs(trend.value)}%

@@ -5,7 +5,6 @@ import { StatCard, StatCardGrid } from "@/components/cards/StatCard";
 import { AlertCard } from "@/components/cards/AlertCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { StatusBadge, SeverityBadge } from "@/components/StatusBadge";
 import {
   Car,
   ClipboardCheck,
@@ -15,8 +14,6 @@ import {
   Calendar,
   Activity,
   TrendingUp,
-  Users,
-  Building2,
 } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
@@ -53,13 +50,8 @@ export function DashboardPage() {
     { enabled: isGestor }
   );
 
-  const { data: myReservations } = trpc.reservations.myActive.useQuery(
-    undefined,
-    { enabled: isMotorista }
-  );
-
   if (isMotorista) {
-    return <MotoristaDashboard stats={motoristaStats} reservations={myReservations} />;
+    return <MotoristaDashboard stats={motoristaStats} />;
   }
 
   return (
@@ -229,9 +221,9 @@ export function DashboardPage() {
               </Link>
             </Button>
             <Button variant="outline" asChild className="justify-start">
-              <Link to="/reservations/new">
-                <Calendar className="h-4 w-4 mr-2" />
-                Nova Reserva
+              <Link to="/checklists/new">
+                <ClipboardCheck className="h-4 w-4 mr-2" />
+                Novo Checklist
               </Link>
             </Button>
             <Button variant="outline" asChild className="justify-start">
@@ -261,48 +253,25 @@ interface MotoristaDashboardProps {
     checklistsHoje: number;
     ocorrenciasAbertas: number;
   };
-  reservations?: Array<{
-    id: number;
-    vehiclePlate: string;
-    vehicleModel: string;
-    projectName: string;
-    startDate: Date;
-    endDate: Date;
-    status: string;
-    checkInAt: Date | null;
-    checkInKm: number | null;
-  }>;
 }
 
-function MotoristaDashboard({ stats, reservations }: MotoristaDashboardProps) {
+function MotoristaDashboard({ stats }: MotoristaDashboardProps) {
   const { user } = useUser();
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={`Olá, ${user?.name?.split(" ")[0] ?? "Motorista"}`}
-        description="Suas reservas e atividades"
+        description="Suas atividades e checklists"
         icon={Activity}
       />
 
       <StatCardGrid>
         <StatCard
-          title="Reservas Ativas"
-          value={stats?.reservasAtivas ?? 0}
-          icon={Calendar}
-          variant="info"
-        />
-        <StatCard
-          title="Em Uso Agora"
-          value={stats?.reservasEmUso ?? 0}
-          icon={Car}
-          variant={stats?.reservasEmUso ? "success" : "default"}
-        />
-        <StatCard
           title="Checklists Hoje"
           value={stats?.checklistsHoje ?? 0}
           icon={ClipboardCheck}
-          variant="default"
+          variant="info"
         />
         <StatCard
           title="Minhas Ocorrências"
@@ -311,63 +280,6 @@ function MotoristaDashboard({ stats, reservations }: MotoristaDashboardProps) {
           variant={stats?.ocorrenciasAbertas ? "warning" : "default"}
         />
       </StatCardGrid>
-
-      {/* My Reservations */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Minhas Reservas
-            </span>
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/reservations/new">Nova Reserva</Link>
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {reservations && reservations.length > 0 ? (
-            <div className="space-y-4">
-              {reservations.map((reservation) => (
-                <div
-                  key={reservation.id}
-                  className="flex items-center justify-between p-4 rounded-lg border"
-                >
-                  <div>
-                    <p className="font-medium">
-                      {reservation.vehiclePlate} - {reservation.vehicleModel}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {reservation.projectName}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {format(new Date(reservation.startDate), "dd/MM HH:mm", { locale: ptBR })} -{" "}
-                      {format(new Date(reservation.endDate), "dd/MM HH:mm", { locale: ptBR })}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <StatusBadge status={reservation.status as "agendada" | "em_uso"} />
-                    <Button size="sm" asChild>
-                      <Link to={`/reservations/${reservation.id}`}>
-                        {reservation.status === "agendada" ? "Check-in" : "Detalhes"}
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground mb-4">
-                Você não tem reservas ativas
-              </p>
-              <Button asChild>
-                <Link to="/reservations/new">Fazer uma Reserva</Link>
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {/* Quick Actions */}
       <Card>
@@ -379,7 +291,7 @@ function MotoristaDashboard({ stats, reservations }: MotoristaDashboardProps) {
             <Button variant="outline" asChild className="justify-start">
               <Link to="/checklists/new">
                 <ClipboardCheck className="h-4 w-4 mr-2" />
-                Fazer Checklist
+                Executar Checklist
               </Link>
             </Button>
             <Button variant="outline" asChild className="justify-start">
@@ -389,9 +301,9 @@ function MotoristaDashboard({ stats, reservations }: MotoristaDashboardProps) {
               </Link>
             </Button>
             <Button variant="outline" asChild className="justify-start">
-              <Link to="/reservations">
-                <Calendar className="h-4 w-4 mr-2" />
-                Ver Reservas
+              <Link to="/checklists">
+                <ClipboardCheck className="h-4 w-4 mr-2" />
+                Meus Checklists
               </Link>
             </Button>
           </div>
