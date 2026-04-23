@@ -14,9 +14,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ClipboardCheck, Plus, Eye, AlertTriangle, CheckCircle } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ClipboardCheck, Plus, Eye, AlertTriangle, CheckCircle, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
 
 type Checklist = {
   id: number;
@@ -35,9 +46,23 @@ export function ChecklistsPage() {
   const canManage = isGestor(user);
 
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [deleteChecklistId, setDeleteChecklistId] = useState<number | null>(null);
+
+  const utils = trpc.useUtils();
 
   const { data: checklists, isLoading } = trpc.checklists.list.useQuery({
     hasIssues: typeFilter === "issues" ? true : undefined,
+  });
+
+  const deleteMutation = trpc.checklists.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Checklist excluído com sucesso");
+      setDeleteChecklistId(null);
+      utils.checklists.list.invalidate();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Erro ao excluir checklist");
+    },
   });
 
   const columns: Column<Checklist>[] = [
@@ -63,7 +88,6 @@ export function ChecklistsPage() {
       header: "Template",
       sortable: true,
     },
-
     {
       key: "hasIssues",
       header: "Status",
@@ -107,6 +131,13 @@ export function ChecklistsPage() {
       icon: <Eye className="h-4 w-4" />,
       onClick: (row) => navigate(`/checklists/${row.id}`),
     },
+    {
+      label: "Excluir",
+      icon: <Trash2 className="h-4 w-4" />,
+      onClick: (row) => setDeleteChecklistId(row.id),
+      variant: "destructive",
+      hidden: () => !canManage,
+    },
   ];
 
   return (
@@ -134,9 +165,7 @@ export function ChecklistsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os Tipos</SelectItem>
-                  <SelectItem value="saida">Saída</SelectItem>
-                  <SelectItem value="retorno">Retorno</SelectItem>
-                  <SelectItem value="diario">Diário</SelectItem>
+                  <SelectItem value="issues">Com Problemas</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -156,6 +185,28 @@ export function ChecklistsPage() {
         onRowClick={(row) => navigate(`/checklists/${row.id}`)}
         emptyMessage="Nenhum checklist encontrado"
       />
+
+      {/* Dialog de confirmação de exclusão */}
+      <AlertDialog open={deleteChecklistId !== null} onOpenChange={() => setDeleteChecklistId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Checklist</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este checklist? O registro será removido da listagem e esta ação não pode ser desfeita. Um log de auditoria será gerado.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteChecklistId && deleteMutation.mutate({ id: deleteChecklistId })}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Excluindo..." : "Excluir Checklist"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

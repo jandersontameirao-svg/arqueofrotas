@@ -52,6 +52,8 @@ export const checklistsRouter = router({
       if (input?.hasIssues !== undefined) {
         conditions.push(eq(checklists.hasIssues, input.hasIssues));
       }
+      // Filtrar checklists excluídos
+      conditions.push(eq(checklists.isDeleted, false));
 
       const result = await db
         .select({
@@ -105,7 +107,7 @@ export const checklistsRouter = router({
         .innerJoin(vehicles, eq(checklists.vehicleId, vehicles.id))
         .innerJoin(users, eq(checklists.userId, users.id))
         .innerJoin(checklistTemplates, eq(checklists.templateId, checklistTemplates.id))
-        .where(eq(checklists.id, input.id))
+        .where(and(eq(checklists.id, input.id), eq(checklists.isDeleted, false)))
         .limit(1);
 
       if (!checklist) return null;
@@ -428,5 +430,47 @@ export const checklistsRouter = router({
         withoutIssues: total - withIssues,
         conformidade,
       };
+    }),
+
+  // Excluir checklist (exclusão lógica)
+  delete: gestorProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      const [previous] = await db
+        .select()
+        .from(checklists)
+        .where(and(eq(checklists.id, input.id), eq(checklists.isDeleted, false)))
+        .limit(1);
+
+      if (!previous) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Checklist não encontrado",
+        });
+      }
+
+      await db
+        .update(checklists)
+        .set({
+          isDeleted: true,
+          deletedAt: new Date(),
+          deletedById: ctx.user.id,
+        })
+        .where(eq(checklists.id, input.id));
+
+      await createAuditLog({
+        user: ctx.user,
+        action: "DELETE",
+        entityType: "checklist",
+        entityId: input.id,
+        previousData: previous as Record<string, unknown>,
+        newData: { isDeleted: true, deletedById: ctx.user.id },
+        ...getRequestInfo(ctx.req),
+      });
+
+      return { success: true };
     }),
 });

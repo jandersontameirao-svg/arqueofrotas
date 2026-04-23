@@ -304,6 +304,10 @@ export const checklists = mysqlTable("checklists", {
   km: int("km"),
   observations: text("observations"),
   hasIssues: boolean("hasIssues").default(false).notNull(),
+  // Exclusão lógica
+  isDeleted: boolean("isDeleted").default(false).notNull(),
+  deletedAt: timestamp("deletedAt"),
+  deletedById: int("deletedById"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

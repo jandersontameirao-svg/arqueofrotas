@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { PageHeader, Breadcrumb } from "@/components/PageHeader";
@@ -16,10 +17,23 @@ import {
   Gauge,
   AlertTriangle,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { useUser, isGestor } from "@/lib/auth";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const responseConfig = {
   ok: {
@@ -45,6 +59,21 @@ const responseConfig = {
 export function ChecklistDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
+  const { user } = useUser();
+  const canManage = isGestor(user);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const utils = trpc.useUtils();
+
+  const deleteMutation = trpc.checklists.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Checklist excluído com sucesso");
+      utils.checklists.list.invalidate();
+      navigate("/checklists");
+    },
+    onError: (error) => {
+      toast.error(error.message || "Erro ao excluir checklist");
+    },
+  });
 
   const { data: checklist, isLoading } = trpc.checklists.getById.useQuery(
     { id: Number(id) },
@@ -101,17 +130,30 @@ export function ChecklistDetailPage() {
         icon={ClipboardCheck}
         backLink="/checklists"
         actions={
-          checklist.hasIssues ? (
-            <Badge variant="destructive" className="gap-1">
-              <AlertTriangle className="h-3 w-3" />
-              Com Pendências
-            </Badge>
-          ) : (
-            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 gap-1">
-              <CheckCircle className="h-3 w-3" />
-              Aprovado
-            </Badge>
-          )
+          <div className="flex items-center gap-2">
+            {checklist.hasIssues ? (
+              <Badge variant="destructive" className="gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                Com Pendências
+              </Badge>
+            ) : (
+              <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 gap-1">
+                <CheckCircle className="h-3 w-3" />
+                Aprovado
+              </Badge>
+            )}
+            {canManage && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Excluir
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -247,6 +289,28 @@ export function ChecklistDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Dialog de confirmação de exclusão */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Checklist #{checklist.id}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este checklist? O registro será removido da listagem e esta ação não pode ser desfeita. Um log de auditoria será gerado.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteMutation.mutate({ id: checklist.id })}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Excluindo..." : "Excluir Checklist"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -159,3 +159,9 @@
 - [x] M6: Exclusão de ocorrência (procedure delete + botão + Dialog na OccurrencesPage)
 - [x] M7: Corrigir erro ao checar checklist (resolvido com M2)
 - [x] Checkup final: 26 testes passando, build OK, dev server sem erros
+
+## Sprint: Exclusão de Checklists e Ocorrências (Módulos 1 e 2)
+- [ ] FASE 1: Diagnóstico completo dos dois módulos
+- [ ] M1: Exclusão real de checklists (soft delete + confirmação + permissão + auditoria)
+- [ ] M2: Exclusão real de ocorrências (verificar/completar o que foi feito na sprint anterior)
+- [ ] Checkup final: 16 itens do checklist obrigatório

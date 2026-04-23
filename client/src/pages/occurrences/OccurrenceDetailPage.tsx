@@ -24,6 +24,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   AlertTriangle,
   Car,
   Calendar,
@@ -39,6 +49,7 @@ import {
   Image as ImageIcon,
   FileText,
   ArrowLeft,
+  Trash2,
 } from "lucide-react";
 import { Link, useParams, useLocation } from "wouter";
 import { format } from "date-fns";
@@ -57,11 +68,25 @@ export function OccurrenceDetailPage() {
   const [isClosing, setIsClosing] = useState(false);
   const [closureNotes, setClosureNotes] = useState("");
   const [newStatus, setNewStatus] = useState<string>("");
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const { data: occurrence, isLoading, refetch } = trpc.occurrences.getById.useQuery(
     { id: occurrenceId },
     { enabled: occurrenceId > 0 }
   );
+
+  const utils = trpc.useUtils();
+
+  const deleteOccurrenceMutation = trpc.occurrences.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Ocorrência excluída com sucesso");
+      utils.occurrences.list.invalidate();
+      navigate("/occurrences");
+    },
+    onError: (error) => {
+      toast.error(error.message || "Erro ao excluir ocorrência");
+    },
+  });
 
   const addCommentMutation = trpc.occurrences.addComment.useMutation({
     onSuccess: () => {
@@ -441,6 +466,22 @@ export function OccurrenceDetailPage() {
             </Card>
           )}
 
+          {/* Excluir Ocorrência */}
+          {isGestor && (
+            <Card className="border-destructive/30">
+              <CardContent className="pt-4">
+                <Button
+                  variant="outline"
+                  className="w-full text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => setShowDeleteDialog(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Excluir Ocorrência
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Timeline */}
           <Card>
             <CardHeader>
@@ -517,6 +558,28 @@ export function OccurrenceDetailPage() {
           </Card>
         </div>
       </div>
+
+      {/* Dialog de confirmação de exclusão */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Ocorrência #{occurrence?.id}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir esta ocorrência? O registro será removido da listagem e esta ação não pode ser desfeita. Um log de auditoria será gerado.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => occurrence && deleteOccurrenceMutation.mutate({ id: occurrence.id })}
+              disabled={deleteOccurrenceMutation.isPending}
+            >
+              {deleteOccurrenceMutation.isPending ? "Excluindo..." : "Excluir Ocorrência"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
