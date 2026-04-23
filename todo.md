@@ -149,3 +149,13 @@
 - [x] Corrigir frontend: action de excluir deve chamar mutation correta
 - [x] Corrigir filtros: listAll, getById e stats excluem OS deletadas
 - [x] Validar checklist completo sem regressão (26 testes passando, build OK)
+
+## Sprint: 7 Módulos (Diagnóstico + Implementação)
+- [x] M1: Exclusão real de usuários (soft delete + auditoria + permissão)
+- [x] M2: Corrigir erro 404 após fazer checklist (ChecklistDetailPage criada + rota /checklists/:id)
+- [x] M3: Corrigir botão de cadastro por IA (gestorProcedure → protectedProcedure)
+- [x] M4: Exclusão de veículos (botão + Dialog + mutation na VehiclesPage)
+- [x] M5: Edição de ocorrência (OccurrenceFormPage reescrito + rota /occurrences/:id/edit)
+- [x] M6: Exclusão de ocorrência (procedure delete + botão + Dialog na OccurrencesPage)
+- [x] M7: Corrigir erro ao checar checklist (resolvido com M2)
+- [x] Checkup final: 26 testes passando, build OK, dev server sem erros

@@ -258,10 +258,13 @@ export const occurrencesRouter = router({
     .input(
       z.object({
         id: z.number(),
+        vehicleId: z.number().optional(),
+        occurredAt: z.date().optional(),
         location: z.string().optional(),
         description: z.string().optional(),
         severity: z.enum(SEVERITY_LEVELS).optional(),
         status: z.enum(OCCURRENCE_STATUSES).optional(),
+        reportedById: z.number().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -470,6 +473,50 @@ export const occurrencesRouter = router({
       });
 
       return { id: result[0].insertId };
+    }),
+
+  // Delete occurrence (logical delete - sets status to 'encerrado' and marks deleted)
+  delete: gestorProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      const [previous] = await db
+        .select()
+        .from(occurrences)
+        .where(eq(occurrences.id, input.id))
+        .limit(1);
+
+      if (!previous) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Ocorrência não encontrada",
+        });
+      }
+
+      // Logical delete: close the occurrence with deletion note
+      await db
+        .update(occurrences)
+        .set({
+          status: "encerrado",
+          closedAt: new Date(),
+          closedById: ctx.user.id,
+          closureNotes: `[EXCLUÍDA] Excluída por ${ctx.user.name ?? ctx.user.openId} em ${new Date().toLocaleString("pt-BR")}`,
+        })
+        .where(eq(occurrences.id, input.id));
+
+      await createAuditLog({
+        user: ctx.user,
+        action: "DELETE",
+        entityType: "occurrence",
+        entityId: input.id,
+        previousData: previous as Record<string, unknown>,
+        newData: { status: "encerrado", deletedBy: ctx.user.id },
+        ...getRequestInfo(ctx.req),
+      });
+
+      return { success: true };
     }),
 
   // Get statistics for dashboard

@@ -20,7 +20,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Car, Plus, Eye, Edit, FileText, Wrench, Download, ChevronDown, Bot } from "lucide-react";
+import { Car, Plus, Eye, Edit, FileText, Wrench, Download, ChevronDown, Bot, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { LABELS, VEHICLE_TYPES, VEHICLE_STATUSES } from "@shared/const";
 import { exportToCSV, exportToPDF } from "@/lib/export";
 import { toast } from "sonner";
@@ -45,6 +55,20 @@ export function VehiclesPage() {
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [deleteVehicleId, setDeleteVehicleId] = useState<number | null>(null);
+
+  const utils = trpc.useUtils();
+
+  const deleteMutation = trpc.vehicles.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Veículo desativado com sucesso!");
+      utils.vehicles.list.invalidate();
+      setDeleteVehicleId(null);
+    },
+    onError: (error: { message?: string }) => {
+      toast.error(error.message || "Erro ao excluir veículo");
+    },
+  });
 
   const { data: vehicles, isLoading } = trpc.vehicles.list.useQuery({
     status: statusFilter !== "all" ? (statusFilter as typeof VEHICLE_STATUSES[number]) : undefined,
@@ -189,6 +213,13 @@ export function VehiclesPage() {
       onClick: (row) => navigate(`/service-orders/new?vehicleId=${row.id}`),
       hidden: () => !canEdit,
     },
+    {
+      label: "Excluir Veículo",
+      icon: <Trash2 className="h-4 w-4" />,
+      onClick: (row) => setDeleteVehicleId(row.id),
+      variant: "destructive" as const,
+      hidden: () => !canEdit,
+    },
   ];
 
   return (
@@ -284,6 +315,27 @@ export function VehiclesPage() {
         onRowClick={(row) => navigate(`/vehicles/${row.id}`)}
         emptyMessage="Nenhum veículo encontrado"
       />
+
+      {/* Delete confirmation */}
+      <AlertDialog open={deleteVehicleId !== null} onOpenChange={() => setDeleteVehicleId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este veículo? O veículo será desativado e não aparecerá mais na frota ativa. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteVehicleId && deleteMutation.mutate({ id: deleteVehicleId })}
+            >
+              Excluir Veículo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

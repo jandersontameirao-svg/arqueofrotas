@@ -20,7 +20,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { AlertTriangle, Plus, Eye, Edit, CheckCircle, Download, FileText, ChevronDown } from "lucide-react";
+import { AlertTriangle, Plus, Eye, Edit, CheckCircle, Download, FileText, ChevronDown, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { LABELS, OCCURRENCE_STATUSES, SEVERITY_LEVELS } from "@shared/const";
@@ -45,6 +55,20 @@ export function OccurrencesPage() {
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
+  const [deleteOccurrenceId, setDeleteOccurrenceId] = useState<number | null>(null);
+
+  const utils = trpc.useUtils();
+
+  const deleteMutation = trpc.occurrences.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Ocorrência excluída com sucesso!");
+      utils.occurrences.list.invalidate();
+      setDeleteOccurrenceId(null);
+    },
+    onError: (error: { message?: string }) => {
+      toast.error(error.message || "Erro ao excluir ocorrência");
+    },
+  });
 
   const { data: occurrences, isLoading } = trpc.occurrences.list.useQuery({
     status: statusFilter !== "all" ? (statusFilter as typeof OCCURRENCE_STATUSES[number]) : undefined,
@@ -191,6 +215,13 @@ export function OccurrencesPage() {
       onClick: (row) => navigate(`/occurrences/${row.id}?close=true`),
       hidden: (row) => row.status === "encerrado" || !canManage,
     },
+    {
+      label: "Excluir",
+      icon: <Trash2 className="h-4 w-4" />,
+      onClick: (row) => setDeleteOccurrenceId(row.id),
+      variant: "destructive" as const,
+      hidden: () => !canManage,
+    },
   ];
 
   return (
@@ -278,6 +309,27 @@ export function OccurrencesPage() {
         onRowClick={(row) => navigate(`/occurrences/${row.id}`)}
         emptyMessage="Nenhuma ocorrência encontrada"
       />
+
+      {/* Delete confirmation */}
+      <AlertDialog open={deleteOccurrenceId !== null} onOpenChange={() => setDeleteOccurrenceId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir esta ocorrência? Ela será encerrada e registrada no log de auditoria. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteOccurrenceId && deleteMutation.mutate({ id: deleteOccurrenceId })}
+            >
+              Excluir Ocorrência
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -57,7 +57,7 @@ export function UsersPage() {
 
   const utils = trpc.useUtils();
 
-  const deactivateMutation = trpc.users.update.useMutation({
+  const deactivateMutation = trpc.users.deactivate.useMutation({
     onSuccess: () => {
       toast.success("Usuário desativado com sucesso!");
       utils.users.list.invalidate();
@@ -214,7 +214,7 @@ export function UsersPage() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => deleteUserId && deactivateMutation.mutate({ id: deleteUserId, active: false })}
+              onClick={() => deleteUserId && deactivateMutation.mutate({ id: deleteUserId })}
             >
               Remover
             </AlertDialogAction>

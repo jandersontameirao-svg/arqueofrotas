@@ -15,6 +15,7 @@ import { VehicleFormPage } from "@/pages/vehicles/VehicleFormPage";
 import { VehicleDetailPage } from "@/pages/vehicles/VehicleDetailPage";
 import { ChecklistsPage } from "@/pages/checklists/ChecklistsPage";
 import { ChecklistExecutePage } from "@/pages/checklists/ChecklistExecutePage";
+import { ChecklistDetailPage } from "@/pages/checklists/ChecklistDetailPage";
 import { ChecklistTemplatesPage } from "@/pages/checklist-templates/ChecklistTemplatesPage";
 import { ChecklistTemplateFormPage } from "@/pages/checklist-templates/ChecklistTemplateFormPage";
 import { ChecklistTemplateDetailPage } from "@/pages/checklist-templates/ChecklistTemplateDetailPage";
@@ -89,6 +90,7 @@ function AppRoutes() {
           {/* Checklists */}
           <Route path="/checklists" component={ChecklistsPage} />
           <Route path="/checklists/new" component={ChecklistExecutePage} />
+          <Route path="/checklists/:id" component={ChecklistDetailPage} />
 
           {/* Checklist Templates - Admin only */}
           <Route path="/checklist-templates">
@@ -119,6 +121,7 @@ function AppRoutes() {
           {/* Occurrences */}
           <Route path="/occurrences" component={OccurrencesPage} />
           <Route path="/occurrences/new" component={OccurrenceFormPage} />
+          <Route path="/occurrences/:id/edit" component={OccurrenceFormPage} />
           <Route path="/occurrences/:id" component={OccurrenceDetailPage} />
 
           {/* Service Orders */}

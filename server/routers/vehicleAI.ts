@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, gestorProcedure } from "../_core/trpc";
+import { router, protectedProcedure } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
 
 // This router provides AI-powered vehicle data extraction from documents (CRLV, etc.)
@@ -7,7 +7,7 @@ import { invokeLLM } from "../_core/llm";
 
 export const vehicleAIRouter = router({
   // Extract vehicle data from a document image (CRLV, etc.)
-  extractFromDocument: gestorProcedure
+  extractFromDocument: protectedProcedure
     .input(
       z.object({
         imageBase64: z.string().min(1, "Imagem é obrigatória"),
