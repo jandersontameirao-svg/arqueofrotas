@@ -132,3 +132,12 @@
 - [x] Adicionar botão de upload de foto na tela de cadastro de veículos
 - [x] Preenchimento automático dos campos a partir da extração da IA
 - [x] Testar funcionalidade completa (4 testes passando)
+
+## Correção: Exclusão Real de Multas (Bug Fix)
+- [x] Diagnosticar causa raiz: excluir multa resulta em "Cancelada" em vez de exclusão real
+- [x] Corrigir backend: mutation de exclusão deve deletar registro do banco (exclusão lógica com isDeleted)
+- [x] Corrigir frontend: action de excluir deve chamar mutation correta (trpc.vehicleFines.delete)
+- [x] Preservar auditoria/log da exclusão (createAuditLog com isDeleted, deletedById, deletedAt)
+- [x] Garantir permissões corretas (gestorProcedure no backend + canEdit no frontend)
+- [x] Corrigir filtros/listagem para não exibir multas excluídas (isDeleted=false em listAll, listByVehicle e stats)
+- [x] Validar checklist completo sem regressão (26 testes passando, build OK)

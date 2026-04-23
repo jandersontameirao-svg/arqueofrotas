@@ -39,9 +39,9 @@ export function VehicleFinesPage() {
 
   const utils = trpc.useUtils();
 
-  const deleteMutation = trpc.vehicleFines.softDelete.useMutation({
+  const deleteMutation = trpc.vehicleFines.delete.useMutation({
     onSuccess: () => {
-      toast.success("Multa excluída (cancelada) com sucesso");
+      toast.success("Multa excluída com sucesso");
       utils.vehicleFines.invalidate();
       setDeleteId(null);
     },
@@ -208,7 +208,7 @@ export function VehicleFinesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir esta multa? A multa será marcada como cancelada. Esta ação será registrada na auditoria.
+              Tem certeza que deseja excluir esta multa? Esta ação é irreversível e será registrada na auditoria.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

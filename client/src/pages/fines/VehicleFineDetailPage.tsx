@@ -36,9 +36,9 @@ export function VehicleFineDetailPage() {
 
   const utils = trpc.useUtils();
 
-  const deleteMutation = trpc.vehicleFines.softDelete.useMutation({
+  const deleteMutation = trpc.vehicleFines.delete.useMutation({
     onSuccess: () => {
-      toast.success("Multa excluída (cancelada) com sucesso");
+      toast.success("Multa excluída com sucesso");
       utils.vehicleFines.invalidate();
       navigate("/fines");
     },

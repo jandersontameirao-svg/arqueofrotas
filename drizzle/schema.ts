@@ -866,6 +866,10 @@ export const vehicleFines = mysqlTable("vehicleFines", {
   registeredById: int("registeredById").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  // Exclusão lógica real: isDeleted=true remove da listagem, preserva para auditoria
+  isDeleted: boolean("isDeleted").default(false).notNull(),
+  deletedAt: timestamp("deletedAt"),
+  deletedById: int("deletedById"),
 });
 
 export type VehicleFine = typeof vehicleFines.$inferSelect;

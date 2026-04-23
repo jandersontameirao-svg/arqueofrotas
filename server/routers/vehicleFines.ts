@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, ne } from "drizzle-orm";
 import { router, gestorProcedure, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import { vehicleFines, vehicles, users } from "../../drizzle/schema";
@@ -37,7 +37,7 @@ export const vehicleFinesRouter = router({
         })
         .from(vehicleFines)
         .leftJoin(users, eq(vehicleFines.responsibleDriverId, users.id))
-        .where(eq(vehicleFines.vehicleId, input.vehicleId))
+        .where(and(eq(vehicleFines.vehicleId, input.vehicleId), eq(vehicleFines.isDeleted, false)))
         .orderBy(desc(vehicleFines.fineDate));
 
       return result;
@@ -54,6 +54,8 @@ export const vehicleFinesRouter = router({
       if (!db) throw new Error("Database not available");
 
       const conditions = [];
+      // Excluir multas deletadas logicamente (deletedAt preenchido)
+      conditions.push(eq(vehicleFines.isDeleted, false));
       if (input?.status) {
         conditions.push(eq(vehicleFines.status, input.status));
       }
@@ -214,6 +216,46 @@ export const vehicleFinesRouter = router({
       return { success: true };
     }),
 
+  // Exclusão lógica real: marca isDeleted=true, preserva registro para auditoria mas remove da listagem
+  delete: gestorProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      const [previous] = await db
+        .select()
+        .from(vehicleFines)
+        .where(eq(vehicleFines.id, input.id))
+        .limit(1);
+
+      if (!previous) throw new Error("Multa não encontrada");
+      if (previous.isDeleted) throw new Error("Multa já foi excluída");
+
+      // Exclusão lógica: marca como excluída preservando rastreabilidade
+      await db
+        .update(vehicleFines)
+        .set({
+          isDeleted: true,
+          deletedById: ctx.user.id,
+          deletedAt: new Date(),
+        })
+        .where(eq(vehicleFines.id, input.id));
+
+      await createAuditLog({
+        user: ctx.user,
+        action: "DELETE",
+        entityType: "vehicle_fine",
+        entityId: input.id,
+        previousData: previous as Record<string, unknown>,
+        newData: { isDeleted: true, deletedById: ctx.user.id, deletedAt: new Date().toISOString() } as Record<string, unknown>,
+        ...getRequestInfo(ctx.req),
+      });
+
+      return { success: true };
+    }),
+
+  // Mantido para compatibilidade (alias para delete)
   softDelete: gestorProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
@@ -226,12 +268,16 @@ export const vehicleFinesRouter = router({
         .where(eq(vehicleFines.id, input.id))
         .limit(1);
 
-      if (!previous) throw new Error("Multa n\u00e3o encontrada");
+      if (!previous) throw new Error("Multa não encontrada");
+      if (previous.isDeleted) throw new Error("Multa já foi excluída");
 
-      // Soft delete: marca como cancelada em vez de deletar fisicamente
       await db
         .update(vehicleFines)
-        .set({ status: "cancelada" })
+        .set({
+          isDeleted: true,
+          deletedById: ctx.user.id,
+          deletedAt: new Date(),
+        })
         .where(eq(vehicleFines.id, input.id));
 
       await createAuditLog({
@@ -240,7 +286,7 @@ export const vehicleFinesRouter = router({
         entityType: "vehicle_fine",
         entityId: input.id,
         previousData: previous as Record<string, unknown>,
-        newData: { status: "cancelada", deletedBy: ctx.user.id, deletedAt: new Date().toISOString() } as Record<string, unknown>,
+        newData: { isDeleted: true, deletedById: ctx.user.id, deletedAt: new Date().toISOString() } as Record<string, unknown>,
         ...getRequestInfo(ctx.req),
       });
 
@@ -257,7 +303,8 @@ export const vehicleFinesRouter = router({
         status: vehicleFines.status,
         amount: vehicleFines.amount,
       })
-      .from(vehicleFines);
+      .from(vehicleFines)
+      .where(eq(vehicleFines.isDeleted, false));
 
     const pendentes = allFines.filter((f) => f.status === "pendente");
     const pagas = allFines.filter((f) => f.status === "paga");
