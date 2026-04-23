@@ -141,3 +141,11 @@
 - [x] Garantir permissões corretas (gestorProcedure no backend + canEdit no frontend)
 - [x] Corrigir filtros/listagem para não exibir multas excluídas (isDeleted=false em listAll, listByVehicle e stats)
 - [x] Validar checklist completo sem regressão (26 testes passando, build OK)
+
+## Correção: Exclusão Real de Ordens de Serviço (Bug Fix)
+- [x] Diagnosticar causa raiz: excluir OS resulta em "Cancelada" em vez de exclusão real
+- [x] Adicionar colunas isDeleted, deletedAt, deletedById na tabela serviceOrders
+- [x] Corrigir backend: procedure delete com exclusão lógica real + auditoria
+- [x] Corrigir frontend: action de excluir deve chamar mutation correta
+- [x] Corrigir filtros: listAll, getById e stats excluem OS deletadas
+- [x] Validar checklist completo sem regressão (26 testes passando, build OK)

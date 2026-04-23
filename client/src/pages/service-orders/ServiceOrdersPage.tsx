@@ -21,7 +21,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Wrench, Plus, Eye, Edit, CheckCircle, Play, Download, FileText, ChevronDown } from "lucide-react";
+import { Wrench, Plus, Eye, Edit, CheckCircle, Play, Download, FileText, ChevronDown, Trash2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { LABELS, SERVICE_ORDER_STATUSES, MAINTENANCE_TYPES } from "@shared/const";
@@ -48,6 +58,21 @@ export function ServiceOrdersPage() {
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [deletingOS, setDeletingOS] = useState<ServiceOrder | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
+
+  const utils = trpc.useUtils();
+  const deleteMutation = trpc.serviceOrders.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Ordem de serviço excluída com sucesso");
+      setDeletingOS(null);
+      setDeleteReason("");
+      utils.serviceOrders.list.invalidate();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Erro ao excluir ordem de serviço");
+    },
+  });
 
   const { data: serviceOrders, isLoading } = trpc.serviceOrders.list.useQuery({
     status: statusFilter !== "all" ? (statusFilter as typeof SERVICE_ORDER_STATUSES[number]) : undefined,
@@ -212,6 +237,13 @@ export function ServiceOrdersPage() {
       hidden: (row) =>
         row.status === "concluida" || row.status === "cancelada" || row.status === "aberta" || !canManage,
     },
+    {
+      label: "Excluir",
+      icon: <Trash2 className="h-4 w-4" />,
+      onClick: (row) => { setDeletingOS(row); setDeleteReason(""); },
+      hidden: () => !isGestor(user),
+      className: "text-red-600",
+    },
   ];
 
   return (
@@ -301,6 +333,41 @@ export function ServiceOrdersPage() {
         onRowClick={(row) => navigate(`/service-orders/${row.id}`)}
         emptyMessage="Nenhuma ordem de serviço encontrada"
       />
+
+      {/* Dialog de confirmação de exclusão */}
+      <Dialog open={!!deletingOS} onOpenChange={(open) => { if (!open) { setDeletingOS(null); setDeleteReason(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir Ordem de Serviço</DialogTitle>
+            <DialogDescription>
+              Excluir a OS <strong>{deletingOS?.osCode || `#${deletingOS?.id}`}</strong>? Esta ação é irreversível.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Motivo da Exclusão *</Label>
+              <Textarea
+                placeholder="Informe o motivo da exclusão..."
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                className="min-h-[100px]"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDeletingOS(null); setDeleteReason(""); }}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deletingOS && deleteMutation.mutate({ id: deletingOS.id, reason: deleteReason })}
+              disabled={!deleteReason.trim() || deleteMutation.isPending}
+            >
+              Confirmar Exclusão
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

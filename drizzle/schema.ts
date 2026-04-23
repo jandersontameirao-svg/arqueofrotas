@@ -461,6 +461,10 @@ export const serviceOrders = mysqlTable("serviceOrders", {
   kmAtOpen: int("kmAtOpen"),
   // Notas
   executionNotes: text("executionNotes"),
+  // Exclusão lógica
+  isDeleted: boolean("isDeleted").default(false).notNull(),
+  deletedAt: timestamp("deletedAt"),
+  deletedById: int("deletedById"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

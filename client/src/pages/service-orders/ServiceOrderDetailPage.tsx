@@ -31,6 +31,7 @@ import {
   ArrowLeft,
   AlertTriangle,
   DollarSign,
+  Trash2,
 } from "lucide-react";
 import { Link, useParams, useLocation } from "wouter";
 import { format } from "date-fns";
@@ -48,6 +49,8 @@ export function ServiceOrderDetailPage() {
   const [isStarting, setIsStarting] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -80,6 +83,17 @@ export function ServiceOrderDetailPage() {
     },
     onError: (error) => {
       toast.error(error.message || "Erro ao concluir ordem de serviço");
+    },
+  });
+
+  const deleteMutation = trpc.serviceOrders.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Ordem de serviço excluída com sucesso");
+      setIsDeleting(false);
+      navigate("/service-orders");
+    },
+    onError: (error) => {
+      toast.error(error.message || "Erro ao excluir ordem de serviço");
     },
   });
 
@@ -152,6 +166,13 @@ export function ServiceOrderDetailPage() {
     });
   };
 
+  const handleDelete = () => {
+    deleteMutation.mutate({
+      id: serviceOrderId,
+      reason: deleteReason,
+    });
+  };
+
   const isGestor = user?.role === "admin" || user?.role === "gestor_frota";
   const isManutencao = user?.role === "manutencao" || isGestor;
   const canSubmitForApproval = isManutencao && (serviceOrder?.status === "aberta" || serviceOrder?.status === "rascunho");
@@ -159,6 +180,7 @@ export function ServiceOrderDetailPage() {
   const canStart = isManutencao && (serviceOrder?.status === "aberta" || serviceOrder?.status === "aprovada");
   const canComplete = isManutencao && serviceOrder?.status === "em_andamento";
   const canCancel = isGestor && serviceOrder?.status !== "concluida" && serviceOrder?.status !== "cancelada";
+  const canDelete = isGestor;
 
   // Calculate total from items
   const totalItems = serviceOrder?.items?.reduce(
@@ -655,6 +677,49 @@ export function ServiceOrderDetailPage() {
                         </Button>
                         <Button onClick={handleComplete} disabled={completeMutation.isPending}>
                           Confirmar Conclusão
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                )}
+
+                {/* Delete Service Order - Exclusão real */}
+                {canDelete && (
+                  <Dialog open={isDeleting} onOpenChange={setIsDeleting}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="w-full text-red-700 hover:text-red-800 border-red-300">
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Excluir OS
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Excluir Ordem de Serviço</DialogTitle>
+                        <DialogDescription>
+                          Esta ação é irreversível. A OS será excluída e não aparecerá mais na listagem.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label>Motivo da Exclusão *</Label>
+                          <Textarea
+                            placeholder="Informe o motivo da exclusão..."
+                            value={deleteReason}
+                            onChange={(e) => setDeleteReason(e.target.value)}
+                            className="min-h-[100px]"
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsDeleting(false)}>
+                          Voltar
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={handleDelete}
+                          disabled={!deleteReason.trim() || deleteMutation.isPending}
+                        >
+                          Confirmar Exclusão
                         </Button>
                       </DialogFooter>
                     </DialogContent>

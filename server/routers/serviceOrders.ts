@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, desc, and, ne, or } from "drizzle-orm";
+import { eq, desc, and, ne, or, sql } from "drizzle-orm";
 import { router, manutencaoProcedure, gestorProcedure, permissionProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import {
@@ -32,7 +32,9 @@ export const serviceOrdersRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
-      const conditions = [];
+      const conditions = [
+        eq(serviceOrders.isDeleted, false), // Nunca exibir OS excluídas
+      ];
 
       // Maintenance users only see assigned orders
       if (ctx.user.role === "manutencao") {
@@ -104,6 +106,7 @@ export const serviceOrdersRouter = router({
       .leftJoin(users, eq(serviceOrders.assignedToId, users.id))
       .where(
         and(
+          eq(serviceOrders.isDeleted, false),
           ne(serviceOrders.status, "concluida"),
           ne(serviceOrders.status, "cancelada")
         )
@@ -151,7 +154,7 @@ export const serviceOrdersRouter = router({
         .innerJoin(vehicles, eq(serviceOrders.vehicleId, vehicles.id))
         .leftJoin(users, eq(serviceOrders.assignedToId, users.id))
         .leftJoin(maintenancePlans, eq(serviceOrders.maintenancePlanId, maintenancePlans.id))
-        .where(eq(serviceOrders.id, input.id))
+        .where(and(eq(serviceOrders.id, input.id), eq(serviceOrders.isDeleted, false)))
         .limit(1);
 
       if (!so) return null;
@@ -524,6 +527,54 @@ export const serviceOrdersRouter = router({
       return { success: true };
     }),
 
+  // Delete service order (exclusão lógica real - diferente de cancelar)
+  delete: gestorProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        reason: z.string().min(1, "Motivo é obrigatório"),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      const [so] = await db
+        .select()
+        .from(serviceOrders)
+        .where(and(eq(serviceOrders.id, input.id), eq(serviceOrders.isDeleted, false)))
+        .limit(1);
+
+      if (!so) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Ordem de serviço não encontrada",
+        });
+      }
+
+      await db
+        .update(serviceOrders)
+        .set({
+          isDeleted: true,
+          deletedAt: new Date(),
+          deletedById: ctx.user.id,
+          executionNotes: `${so.executionNotes ?? ""}\nExcluído por ${ctx.user.name}: ${input.reason}`.trim(),
+        })
+        .where(eq(serviceOrders.id, input.id));
+
+      await createAuditLog({
+        user: ctx.user,
+        action: "DELETE",
+        entityType: "service_order",
+        entityId: input.id,
+        previousData: { status: so.status, osCode: so.osCode },
+        newData: { isDeleted: true, reason: input.reason, deletedById: ctx.user.id },
+        ...getRequestInfo(ctx.req),
+      });
+
+      return { success: true };
+    }),
+
   // Add item (part or service)
   addItem: manutencaoProcedure
     .input(
@@ -862,7 +913,8 @@ export const serviceOrdersRouter = router({
         openedAt: serviceOrders.openedAt,
         completedAt: serviceOrders.completedAt,
       })
-      .from(serviceOrders);
+      .from(serviceOrders)
+      .where(eq(serviceOrders.isDeleted, false));
 
     const total = allSOs.length;
     const abertas = allSOs.filter((so) => so.status === "aberta").length;
