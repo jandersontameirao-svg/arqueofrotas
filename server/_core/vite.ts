@@ -21,7 +21,14 @@ export async function setupVite(app: Express, server: Server) {
   });
 
   app.use(vite.middlewares);
+  // Serve index.html for all non-API routes (SPA fallback)
+  // But skip API routes so they can be handled by their respective handlers
   app.use("*", async (req, res, next) => {
+    // Skip API routes - let them be handled by their respective middleware
+    if (req.path.startsWith("/api/")) {
+      return next();
+    }
+
     const url = req.originalUrl;
 
     try {

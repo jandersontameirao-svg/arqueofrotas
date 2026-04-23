@@ -25,7 +25,16 @@ import { ServiceOrdersPage } from "@/pages/service-orders/ServiceOrdersPage";
 import { ServiceOrderFormPage } from "@/pages/service-orders/ServiceOrderFormPage";
 import { ServiceOrderDetailPage } from "@/pages/service-orders/ServiceOrderDetailPage";
 import { UsersPage } from "@/pages/users/UsersPage";
+import { UserFormPage } from "@/pages/users/UserFormPage";
+import { UserDetailPage } from "@/pages/users/UserDetailPage";
 import { AuditLogsPage } from "@/pages/audit/AuditLogsPage";
+import { ServiceProvidersPage } from "@/pages/service-providers/ServiceProvidersPage";
+import { ServiceProviderFormPage } from "@/pages/service-providers/ServiceProviderFormPage";
+import { VehicleFinesPage } from "@/pages/fines/VehicleFinesPage";
+import { VehicleFineFormPage } from "@/pages/fines/VehicleFineFormPage";
+import { VehicleFineDetailPage } from "@/pages/fines/VehicleFineDetailPage";
+import { VehicleAIPage } from "@/pages/vehicles/VehicleAIPage";
+import { NotificationsPage } from "@/pages/notifications/NotificationsPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth({ redirectOnUnauthenticated: true });
@@ -123,6 +132,38 @@ function AppRoutes() {
               <UsersPage />
             </AdminRoute>
           </Route>
+          <Route path="/users/new">
+            <AdminRoute>
+              <UserFormPage />
+            </AdminRoute>
+          </Route>
+          <Route path="/users/:id">
+            <AdminRoute>
+              <UserDetailPage />
+            </AdminRoute>
+          </Route>
+          <Route path="/users/:id/edit">
+            <AdminRoute>
+              <UserFormPage />
+            </AdminRoute>
+          </Route>
+
+          {/* Service Providers */}
+          <Route path="/service-providers" component={ServiceProvidersPage} />
+          <Route path="/service-providers/new" component={ServiceProviderFormPage} />
+          <Route path="/service-providers/:id/edit" component={ServiceProviderFormPage} />
+
+          {/* Vehicle Fines */}
+          <Route path="/fines" component={VehicleFinesPage} />
+          <Route path="/fines/new" component={VehicleFineFormPage} />
+          <Route path="/fines/:id" component={VehicleFineDetailPage} />
+          <Route path="/fines/:id/edit" component={VehicleFineFormPage} />
+
+          {/* Vehicle AI Registration */}
+          <Route path="/vehicles/ai-register" component={VehicleAIPage} />
+
+          {/* Notifications */}
+          <Route path="/notifications" component={NotificationsPage} />
 
           {/* Audit Logs - Admin only */}
           <Route path="/audit">

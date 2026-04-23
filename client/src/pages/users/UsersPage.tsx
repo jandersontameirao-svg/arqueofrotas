@@ -77,11 +77,11 @@ export function UsersPage() {
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
             <span className="text-sm font-medium text-primary">
-              {row.name.charAt(0).toUpperCase()}
+              {row.name ? row.name.charAt(0).toUpperCase() : "?"}
             </span>
           </div>
           <div>
-            <p className="font-medium">{row.name}</p>
+            <p className="font-medium">{row.name || "Sem nome"}</p>
             {row.email && <p className="text-xs text-muted-foreground">{row.email}</p>}
           </div>
         </div>

@@ -48,8 +48,13 @@ export function ServiceOrderDetailPage() {
   const [isStarting, setIsStarting] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+  const [isRejecting, setIsRejecting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [executionNotes, setExecutionNotes] = useState("");
   const [cancelReason, setCancelReason] = useState("");
+  const [approvalNotes, setApprovalNotes] = useState("");
+  const [rejectionNotes, setRejectionNotes] = useState("");
 
   const { data: serviceOrder, isLoading, refetch } = trpc.serviceOrders.getById.useQuery(
     { id: serviceOrderId },
@@ -89,6 +94,46 @@ export function ServiceOrderDetailPage() {
     },
   });
 
+  const submitForApprovalMutation = trpc.serviceOrders.submitForApproval.useMutation({
+    onSuccess: () => {
+      toast.success("OS enviada para aprovação");
+      setIsSubmitting(false);
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Erro ao enviar para aprovação");
+    },
+  });
+
+  const approveMutation = trpc.serviceOrders.approve.useMutation({
+    onSuccess: () => {
+      toast.success("OS aprovada com sucesso");
+      setIsApproving(false);
+      setApprovalNotes("");
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Erro ao aprovar OS");
+    },
+  });
+
+  const rejectMutation = trpc.serviceOrders.reject.useMutation({
+    onSuccess: () => {
+      toast.success("OS rejeitada");
+      setIsRejecting(false);
+      setRejectionNotes("");
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Erro ao rejeitar OS");
+    },
+  });
+
+  const { data: approvalHistory } = trpc.serviceOrders.getApprovalHistory.useQuery(
+    { serviceOrderId },
+    { enabled: serviceOrderId > 0 }
+  );
+
   const handleStart = () => {
     startMutation.mutate({ id: serviceOrderId });
   };
@@ -109,7 +154,9 @@ export function ServiceOrderDetailPage() {
 
   const isGestor = user?.role === "admin" || user?.role === "gestor_frota";
   const isManutencao = user?.role === "manutencao" || isGestor;
-  const canStart = isManutencao && serviceOrder?.status === "aberta";
+  const canSubmitForApproval = isManutencao && (serviceOrder?.status === "aberta" || serviceOrder?.status === "rascunho");
+  const canApprove = isGestor && serviceOrder?.status === "pendente_aprovacao";
+  const canStart = isManutencao && (serviceOrder?.status === "aberta" || serviceOrder?.status === "aprovada");
   const canComplete = isManutencao && serviceOrder?.status === "em_andamento";
   const canCancel = isGestor && serviceOrder?.status !== "concluida" && serviceOrder?.status !== "cancelada";
 
@@ -147,6 +194,10 @@ export function ServiceOrderDetailPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case "rascunho": return "bg-gray-100 text-gray-800";
+      case "pendente_aprovacao": return "bg-purple-100 text-purple-800";
+      case "aprovada": return "bg-teal-100 text-teal-800";
+      case "rejeitada": return "bg-red-100 text-red-800";
       case "aberta": return "bg-blue-100 text-blue-800";
       case "em_andamento": return "bg-amber-100 text-amber-800";
       case "concluida": return "bg-green-100 text-green-800";
@@ -157,6 +208,10 @@ export function ServiceOrderDetailPage() {
 
   const getStatusLabel = (status: string) => {
     switch (status) {
+      case "rascunho": return "Rascunho";
+      case "pendente_aprovacao": return "Pendente de Aprovação";
+      case "aprovada": return "Aprovada";
+      case "rejeitada": return "Rejeitada";
       case "aberta": return "Aberta";
       case "em_andamento": return "Em Andamento";
       case "concluida": return "Concluída";
@@ -423,12 +478,122 @@ export function ServiceOrderDetailPage() {
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Actions */}
-          {(canStart || canComplete || canCancel) && (
+          {(canSubmitForApproval || canApprove || canStart || canComplete || canCancel) && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Ações</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
+                {/* Submit for Approval */}
+                {canSubmitForApproval && (
+                  <Dialog open={isSubmitting} onOpenChange={setIsSubmitting}>
+                    <DialogTrigger asChild>
+                      <Button variant="default" className="w-full bg-purple-600 hover:bg-purple-700">
+                        <FileText className="h-4 w-4 mr-2" />
+                        Enviar para Aprovação
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Enviar para Aprovação</DialogTitle>
+                        <DialogDescription>
+                          A OS será enviada para aprovação dos gestores. Deseja continuar?
+                        </DialogDescription>
+                      </DialogHeader>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsSubmitting(false)}>
+                          Cancelar
+                        </Button>
+                        <Button onClick={() => submitForApprovalMutation.mutate({ id: serviceOrderId })} disabled={submitForApprovalMutation.isPending}>
+                          Confirmar Envio
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                )}
+
+                {/* Approve */}
+                {canApprove && (
+                  <Dialog open={isApproving} onOpenChange={setIsApproving}>
+                    <DialogTrigger asChild>
+                      <Button variant="default" className="w-full bg-green-600 hover:bg-green-700">
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Aprovar OS
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Aprovar Ordem de Serviço</DialogTitle>
+                        <DialogDescription>
+                          Confirma a aprovação desta OS?
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label>Observações (opcional)</Label>
+                          <Textarea
+                            placeholder="Observações sobre a aprovação..."
+                            value={approvalNotes}
+                            onChange={(e) => setApprovalNotes(e.target.value)}
+                            className="min-h-[80px]"
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsApproving(false)}>
+                          Cancelar
+                        </Button>
+                        <Button onClick={() => approveMutation.mutate({ id: serviceOrderId, notes: approvalNotes || undefined })} disabled={approveMutation.isPending} className="bg-green-600 hover:bg-green-700">
+                          Confirmar Aprovação
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                )}
+
+                {/* Reject */}
+                {canApprove && (
+                  <Dialog open={isRejecting} onOpenChange={setIsRejecting}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="w-full text-red-600 hover:text-red-700">
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Rejeitar OS
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Rejeitar Ordem de Serviço</DialogTitle>
+                        <DialogDescription>
+                          Informe o motivo da rejeição.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label>Motivo da Rejeição *</Label>
+                          <Textarea
+                            placeholder="Informe o motivo da rejeição..."
+                            value={rejectionNotes}
+                            onChange={(e) => setRejectionNotes(e.target.value)}
+                            className="min-h-[100px]"
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsRejecting(false)}>
+                          Voltar
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={() => rejectMutation.mutate({ id: serviceOrderId, notes: rejectionNotes })}
+                          disabled={!rejectionNotes.trim() || rejectMutation.isPending}
+                        >
+                          Confirmar Rejeição
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                )}
+
                 {/* Start Service */}
                 {canStart && (
                   <Dialog open={isStarting} onOpenChange={setIsStarting}>
@@ -538,6 +703,45 @@ export function ServiceOrderDetailPage() {
                     </DialogContent>
                   </Dialog>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Approval History */}
+          {approvalHistory && approvalHistory.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Histórico de Aprovação
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {approvalHistory.map((entry) => (
+                    <div key={entry.id} className="flex gap-3">
+                      <div className={`h-2 w-2 rounded-full mt-2 ${
+                        entry.action === "aprovado" ? "bg-green-500" :
+                        entry.action === "rejeitado" ? "bg-red-500" :
+                        "bg-purple-500"
+                      }`}></div>
+                      <div>
+                        <p className="text-sm font-medium">
+                          {entry.action === "aprovado" ? "Aprovado" :
+                           entry.action === "rejeitado" ? "Rejeitado" :
+                           "Pendente"}
+                          {entry.userName && ` por ${entry.userName}`}
+                        </p>
+                        {entry.notes && (
+                          <p className="text-xs text-muted-foreground">{entry.notes}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(entry.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           )}

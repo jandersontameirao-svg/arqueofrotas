@@ -17,6 +17,10 @@ import { maintenancePlansRouter } from "./routers/maintenancePlans";
 import { auditLogsRouter } from "./routers/auditLogs";
 import { dashboardRouter } from "./routers/dashboard";
 import { vehiclePhotosRouter } from "./routers/vehiclePhotos";
+import { serviceProvidersRouter } from "./routers/serviceProviders";
+import { vehicleFinesRouter } from "./routers/vehicleFines";
+import { notificationsRouter } from "./routers/notifications";
+import { vehicleAIRouter } from "./routers/vehicleAI";
 
 export const appRouter = router({
   system: systemRouter,
@@ -46,6 +50,10 @@ export const appRouter = router({
   auditLogs: auditLogsRouter,
   dashboard: dashboardRouter,
   vehiclePhotos: vehiclePhotosRouter,
+  serviceProviders: serviceProvidersRouter,
+  vehicleFines: vehicleFinesRouter,
+  notifications: notificationsRouter,
+  vehicleAI: vehicleAIRouter,
 });
 
 export type AppRouter = typeof appRouter;

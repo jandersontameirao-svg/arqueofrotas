@@ -38,7 +38,11 @@ export type EntityType =
   | "vehicle_maintenance_status"
   | "service_order"
   | "service_order_item"
-  | "service_order_attachment";
+  | "service_order_attachment"
+  | "service_provider"
+  | "service_order_approval"
+  | "vehicle_fine"
+  | "notification";
 
 interface AuditLogParams {
   user?: User | null;

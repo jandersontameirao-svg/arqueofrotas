@@ -118,8 +118,20 @@ export const OCCURRENCE_STATUSES = ['aberto', 'em_tratamento', 'encerrado'] as c
 export type OccurrenceStatus = typeof OCCURRENCE_STATUSES[number];
 
 // Service order statuses
-export const SERVICE_ORDER_STATUSES = ['aberta', 'em_andamento', 'aguardando_pecas', 'concluida', 'cancelada'] as const;
+export const SERVICE_ORDER_STATUSES = ['rascunho', 'pendente_aprovacao', 'aprovada', 'rejeitada', 'aberta', 'em_andamento', 'aguardando_pecas', 'concluida', 'cancelada'] as const;
 export type ServiceOrderStatus = typeof SERVICE_ORDER_STATUSES[number];
+
+// Approval statuses
+export const APPROVAL_STATUSES = ['pendente', 'aprovado', 'rejeitado'] as const;
+export type ApprovalStatus = typeof APPROVAL_STATUSES[number];
+
+// Notification types
+export const NOTIFICATION_TYPES = ['os_pendente_aprovacao', 'os_aprovada', 'os_rejeitada', 'ocorrencia_nova', 'ocorrencia_atualizada', 'documento_vencendo', 'multa_registrada', 'geral'] as const;
+export type NotificationType = typeof NOTIFICATION_TYPES[number];
+
+// Fine statuses
+export const FINE_STATUSES = ['pendente', 'paga', 'recorrida', 'cancelada'] as const;
+export type FineStatus = typeof FINE_STATUSES[number];
 
 // Maintenance types
 export const MAINTENANCE_TYPES = ['preventiva', 'corretiva'] as const;
@@ -171,11 +183,36 @@ export const LABELS = {
     encerrado: 'Encerrado',
   },
   serviceOrderStatuses: {
+    rascunho: 'Rascunho',
+    pendente_aprovacao: 'Pendente de Aprovação',
+    aprovada: 'Aprovada',
+    rejeitada: 'Rejeitada',
     aberta: 'Aberta',
     em_andamento: 'Em Andamento',
     aguardando_pecas: 'Aguardando Peças',
     concluida: 'Concluída',
     cancelada: 'Cancelada',
+  },
+  approvalStatuses: {
+    pendente: 'Pendente',
+    aprovado: 'Aprovado',
+    rejeitado: 'Rejeitado',
+  },
+  fineStatuses: {
+    pendente: 'Pendente',
+    paga: 'Paga',
+    recorrida: 'Recorrida',
+    cancelada: 'Cancelada',
+  },
+  notificationTypes: {
+    os_pendente_aprovacao: 'OS Pendente de Aprovação',
+    os_aprovada: 'OS Aprovada',
+    os_rejeitada: 'OS Rejeitada',
+    ocorrencia_nova: 'Nova Ocorrência',
+    ocorrencia_atualizada: 'Ocorrência Atualizada',
+    documento_vencendo: 'Documento Vencendo',
+    multa_registrada: 'Multa Registrada',
+    geral: 'Geral',
   },
   maintenanceTypes: {
     preventiva: 'Preventiva',

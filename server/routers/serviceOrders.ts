@@ -6,6 +6,8 @@ import {
   serviceOrders,
   serviceOrderItems,
   serviceOrderAttachments,
+  serviceOrderApprovals,
+  appNotifications,
   vehicles,
   users,
   maintenancePlans,
@@ -618,6 +620,234 @@ export const serviceOrdersRouter = router({
       });
 
       return { id: result[0].insertId, url: uploadResult.url };
+    }),
+
+  // Submit OS for approval
+  submitForApproval: gestorProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      const [so] = await db
+        .select()
+        .from(serviceOrders)
+        .where(eq(serviceOrders.id, input.id))
+        .limit(1);
+
+      if (!so) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "OS não encontrada" });
+      }
+
+      if (so.status !== "rascunho" && so.status !== "aberta") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "OS não pode ser enviada para aprovação neste status" });
+      }
+
+      await db
+        .update(serviceOrders)
+        .set({ status: "pendente_aprovacao" })
+        .where(eq(serviceOrders.id, input.id));
+
+      // Create approval record
+      await db.insert(serviceOrderApprovals).values({
+        serviceOrderId: input.id,
+        action: "pendente",
+        userId: ctx.user.id,
+        notes: "OS enviada para aprovação",
+      });
+
+      // Notify all gestores and admins
+      const gestores = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(
+          eq(users.active, true),
+          or(
+            eq(users.role, "admin"),
+            eq(users.role, "gestor_frota")
+          )
+        ));
+
+      for (const gestor of gestores) {
+        if (gestor.id !== ctx.user.id) {
+          await db.insert(appNotifications).values({
+            userId: gestor.id,
+            type: "os_pendente_aprovacao",
+            title: `OS ${so.osCode} aguarda aprovação`,
+            message: `A ordem de serviço ${so.osCode} foi enviada para aprovação por ${ctx.user.name}.`,
+            entityType: "service_order",
+            entityId: input.id,
+          });
+        }
+      }
+
+      await createAuditLog({
+        user: ctx.user,
+        action: "STATUS_CHANGE",
+        entityType: "service_order",
+        entityId: input.id,
+        previousData: { status: so.status },
+        newData: { status: "pendente_aprovacao" },
+        ...getRequestInfo(ctx.req),
+      });
+
+      return { success: true };
+    }),
+
+  // Approve OS
+  approve: gestorProcedure
+    .input(z.object({
+      id: z.number(),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      const [so] = await db
+        .select()
+        .from(serviceOrders)
+        .where(eq(serviceOrders.id, input.id))
+        .limit(1);
+
+      if (!so) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "OS não encontrada" });
+      }
+
+      if (so.status !== "pendente_aprovacao") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "OS não está pendente de aprovação" });
+      }
+
+      await db
+        .update(serviceOrders)
+        .set({
+          status: "aprovada",
+          approvedById: ctx.user.id,
+          approvedAt: new Date(),
+          approvalNotes: input.notes,
+        })
+        .where(eq(serviceOrders.id, input.id));
+
+      await db.insert(serviceOrderApprovals).values({
+        serviceOrderId: input.id,
+        action: "aprovado",
+        userId: ctx.user.id,
+        notes: input.notes,
+      });
+
+      // Notify the opener
+      if (so.openedById) {
+        await db.insert(appNotifications).values({
+          userId: so.openedById,
+          type: "os_aprovada",
+          title: `OS ${so.osCode} foi aprovada`,
+          message: `A ordem de serviço ${so.osCode} foi aprovada por ${ctx.user.name}.${input.notes ? ` Obs: ${input.notes}` : ""}`,
+          entityType: "service_order",
+          entityId: input.id,
+        });
+      }
+
+      await createAuditLog({
+        user: ctx.user,
+        action: "STATUS_CHANGE",
+        entityType: "service_order",
+        entityId: input.id,
+        previousData: { status: "pendente_aprovacao" },
+        newData: { status: "aprovada", approvedById: ctx.user.id, notes: input.notes },
+        ...getRequestInfo(ctx.req),
+      });
+
+      return { success: true };
+    }),
+
+  // Reject OS
+  reject: gestorProcedure
+    .input(z.object({
+      id: z.number(),
+      notes: z.string().min(1, "Motivo da rejeição é obrigatório"),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      const [so] = await db
+        .select()
+        .from(serviceOrders)
+        .where(eq(serviceOrders.id, input.id))
+        .limit(1);
+
+      if (!so) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "OS não encontrada" });
+      }
+
+      if (so.status !== "pendente_aprovacao") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "OS não está pendente de aprovação" });
+      }
+
+      await db
+        .update(serviceOrders)
+        .set({
+          status: "rejeitada",
+          approvedById: ctx.user.id,
+          approvedAt: new Date(),
+          approvalNotes: input.notes,
+        })
+        .where(eq(serviceOrders.id, input.id));
+
+      await db.insert(serviceOrderApprovals).values({
+        serviceOrderId: input.id,
+        action: "rejeitado",
+        userId: ctx.user.id,
+        notes: input.notes,
+      });
+
+      // Notify the opener
+      if (so.openedById) {
+        await db.insert(appNotifications).values({
+          userId: so.openedById,
+          type: "os_rejeitada",
+          title: `OS ${so.osCode} foi rejeitada`,
+          message: `A ordem de serviço ${so.osCode} foi rejeitada por ${ctx.user.name}. Motivo: ${input.notes}`,
+          entityType: "service_order",
+          entityId: input.id,
+        });
+      }
+
+      await createAuditLog({
+        user: ctx.user,
+        action: "STATUS_CHANGE",
+        entityType: "service_order",
+        entityId: input.id,
+        previousData: { status: "pendente_aprovacao" },
+        newData: { status: "rejeitada", notes: input.notes },
+        ...getRequestInfo(ctx.req),
+      });
+
+      return { success: true };
+    }),
+
+  // Get approval history for an OS
+  getApprovalHistory: manutencaoProcedure
+    .input(z.object({ serviceOrderId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      const result = await db
+        .select({
+          id: serviceOrderApprovals.id,
+          action: serviceOrderApprovals.action,
+          userId: serviceOrderApprovals.userId,
+          userName: users.name,
+          notes: serviceOrderApprovals.notes,
+          createdAt: serviceOrderApprovals.createdAt,
+        })
+        .from(serviceOrderApprovals)
+        .leftJoin(users, eq(serviceOrderApprovals.userId, users.id))
+        .where(eq(serviceOrderApprovals.serviceOrderId, input.serviceOrderId))
+        .orderBy(desc(serviceOrderApprovals.createdAt));
+
+      return result;
     }),
 
   // Get statistics for dashboard

@@ -1,5 +1,23 @@
 import { useLocation, useParams } from "wouter";
 import { useState, useRef } from "react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { DOCUMENT_TYPES } from "@shared/const";
 import { trpc } from "@/lib/trpc";
 import { useUser, isGestor } from "@/lib/auth";
 import { PageHeader, Breadcrumb } from "@/components/PageHeader";
@@ -28,6 +46,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { LABELS } from "@shared/const";
 import { toast } from "sonner";
+import { Plus, Trash2, Save } from "lucide-react";
 
 const PHOTO_TYPES = [
   { key: "frente", label: "Frente" },
@@ -49,15 +68,74 @@ export function VehicleDetailPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedPhotoType, setSelectedPhotoType] = useState<PhotoType | null>(null);
 
+  // Document modal state
+  const [showDocModal, setShowDocModal] = useState(false);
+  const [docType, setDocType] = useState<string>("crlv");
+  const [docDescription, setDocDescription] = useState("");
+  const [docExpiration, setDocExpiration] = useState("");
+  const [docFile, setDocFile] = useState<File | null>(null);
+
   const { data: vehicle, isLoading } = trpc.vehicles.getById.useQuery(
     { id: Number(id) },
     { enabled: Boolean(id) }
   );
 
-  const { data: documents } = trpc.vehicleDocuments.listByVehicle.useQuery(
+  const { data: documents, refetch: refetchDocuments } = trpc.vehicleDocuments.listByVehicle.useQuery(
     { vehicleId: Number(id) },
     { enabled: Boolean(id) }
   );
+
+  const utils = trpc.useUtils();
+
+  const createDocMutation = trpc.vehicleDocuments.create.useMutation({
+    onSuccess: () => {
+      toast.success("Documento adicionado com sucesso!");
+      refetchDocuments();
+      setShowDocModal(false);
+      setDocType("crlv");
+      setDocDescription("");
+      setDocExpiration("");
+      setDocFile(null);
+    },
+    onError: (error) => {
+      toast.error("Erro ao adicionar documento", { description: error.message });
+    },
+  });
+
+  const deleteDocMutation = trpc.vehicleDocuments.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Documento removido com sucesso!");
+      refetchDocuments();
+    },
+    onError: (error) => {
+      toast.error("Erro ao remover documento", { description: error.message });
+    },
+  });
+
+  const handleAddDocument = async () => {
+    let fileData: string | undefined;
+    let fileName: string | undefined;
+    let fileType: string | undefined;
+
+    if (docFile) {
+      const buffer = await docFile.arrayBuffer();
+      fileData = btoa(
+        new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
+      );
+      fileName = docFile.name;
+      fileType = docFile.type;
+    }
+
+    createDocMutation.mutate({
+      vehicleId: Number(id),
+      documentType: docType as typeof DOCUMENT_TYPES[number],
+      description: docDescription || undefined,
+      expirationDate: docExpiration ? new Date(docExpiration) : undefined,
+      fileData,
+      fileName,
+      fileType,
+    });
+  };
 
   const { data: timeline } = trpc.dashboard.getVehicleTimeline.useQuery(
     { vehicleId: Number(id), limit: 20 },
@@ -417,8 +495,8 @@ export function VehicleDetailPage() {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Documentos</CardTitle>
               {canEdit && (
-                <Button size="sm" onClick={() => navigate(`/vehicles/${id}/documents/new`)}>
-                  <FileText className="h-4 w-4 mr-2" />
+                <Button size="sm" onClick={() => setShowDocModal(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
                   Adicionar
                 </Button>
               )}
@@ -456,32 +534,48 @@ export function VehicleDetailPage() {
                             )}
                           </div>
                         </div>
-                        <div className="text-right">
-                          {doc.expirationDate ? (
-                            <p
-                              className={`text-sm ${
-                                isExpired
-                                  ? "text-red-600 font-medium"
-                                  : isExpiring
-                                  ? "text-yellow-600 font-medium"
-                                  : "text-muted-foreground"
-                              }`}
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            {doc.expirationDate ? (
+                              <p
+                                className={`text-sm ${
+                                  isExpired
+                                    ? "text-red-600 font-medium"
+                                    : isExpiring
+                                    ? "text-yellow-600 font-medium"
+                                    : "text-muted-foreground"
+                                }`}
+                              >
+                                {isExpired ? "Vencido em " : isExpiring ? "Vence em " : "Válido até "}
+                                {format(new Date(doc.expirationDate), "dd/MM/yyyy", { locale: ptBR })}
+                              </p>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">Sem vencimento</p>
+                            )}
+                            {doc.fileUrl && (
+                              <a
+                                href={doc.fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm text-primary hover:underline"
+                              >
+                                Ver arquivo
+                              </a>
+                            )}
+                          </div>
+                          {canEdit && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => {
+                                if (confirm("Tem certeza que deseja remover este documento?")) {
+                                  deleteDocMutation.mutate({ id: doc.id });
+                                }
+                              }}
                             >
-                              {isExpired ? "Vencido em " : isExpiring ? "Vence em " : "Válido até "}
-                              {format(new Date(doc.expirationDate), "dd/MM/yyyy", { locale: ptBR })}
-                            </p>
-                          ) : (
-                            <p className="text-sm text-muted-foreground">Sem vencimento</p>
-                          )}
-                          {doc.fileUrl && (
-                            <a
-                              href={doc.fileUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm text-primary hover:underline"
-                            >
-                              Ver arquivo
-                            </a>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           )}
                         </div>
                       </div>
@@ -495,6 +589,75 @@ export function VehicleDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Modal para adicionar documento */}
+          <Dialog open={showDocModal} onOpenChange={setShowDocModal}>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Adicionar Documento</DialogTitle>
+                <DialogDescription>
+                  Cadastre um novo documento para o veículo {vehicle?.plate}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Tipo de Documento *</Label>
+                  <Select value={docType} onValueChange={setDocType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DOCUMENT_TYPES.map((dt) => (
+                        <SelectItem key={dt} value={dt}>
+                          {LABELS.documentTypes[dt as keyof typeof LABELS.documentTypes]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Descrição</Label>
+                  <Input
+                    value={docDescription}
+                    onChange={(e) => setDocDescription(e.target.value)}
+                    placeholder="Descrição do documento"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Data de Vencimento</Label>
+                  <Input
+                    type="date"
+                    value={docExpiration}
+                    onChange={(e) => setDocExpiration(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Arquivo (PDF, imagem)</Label>
+                  <Input
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp"
+                    onChange={(e) => setDocFile(e.target.files?.[0] || null)}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowDocModal(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleAddDocument}
+                  disabled={createDocMutation.isPending}
+                >
+                  {createDocMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-2" />
+                  )}
+                  Salvar
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         <TabsContent value="timeline" className="space-y-4">

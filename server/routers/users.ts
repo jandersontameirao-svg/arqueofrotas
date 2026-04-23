@@ -32,6 +32,59 @@ export const usersRouter = router({
     return result;
   }),
 
+  create: adminProcedure
+    .input(
+      z.object({
+        name: z.string().min(1, "Nome é obrigatório"),
+        email: z.string().email("Email inválido"),
+        role: z.enum(USER_ROLES).default("motorista"),
+        unitId: z.number().nullable().optional(),
+        phone: z.string().optional(),
+        openId: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      // Generate a unique openId if not provided
+      const openId = input.openId || `manual-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+      // Check if email already exists
+      if (input.email) {
+        const existing = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.email, input.email))
+          .limit(1);
+        if (existing.length > 0) {
+          throw new Error("Já existe um usuário com este email");
+        }
+      }
+
+      const result = await db.insert(users).values({
+        openId,
+        name: input.name,
+        email: input.email,
+        role: input.role,
+        unitId: input.unitId ?? null,
+        phone: input.phone,
+        active: true,
+      });
+      const insertId = result[0].insertId;
+
+      await createAuditLog({
+        user: ctx.user,
+        action: "CREATE",
+        entityType: "user",
+        entityId: insertId,
+        newData: { name: input.name, email: input.email, role: input.role } as Record<string, unknown>,
+        ...getRequestInfo(ctx.req),
+      });
+
+      return { id: insertId };
+    }),
+
   listActive: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) throw new Error("Database not available");

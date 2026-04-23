@@ -33,6 +33,10 @@ import {
   Users,
   FileText,
   ClipboardList,
+  Building2,
+  Receipt,
+  Bell,
+  Bot,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -40,6 +44,8 @@ import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { LABELS } from "@shared/const";
+import { trpc } from "@/lib/trpc";
+import { Link } from "wouter";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -47,6 +53,8 @@ const menuItems = [
   { icon: ClipboardCheck, label: "Checklists", path: "/checklists" },
   { icon: AlertTriangle, label: "Ocorrências", path: "/occurrences" },
   { icon: Wrench, label: "Ordens de Serviço", path: "/service-orders" },
+  { icon: Building2, label: "Prestadores", path: "/service-providers" },
+  { icon: Receipt, label: "Multas", path: "/fines" },
 ];
 
 const adminMenuItems = [
@@ -59,6 +67,26 @@ const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 280;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 480;
+
+function NotificationBell() {
+  const { data } = trpc.notifications.unreadCount.useQuery(undefined, {
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+  const count = data?.count ?? 0;
+
+  return (
+    <Link to="/notifications">
+      <Button variant="ghost" size="icon" className="relative">
+        <Bell className="h-5 w-5" />
+        {count > 0 && (
+          <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+            {count > 99 ? "99+" : count}
+          </span>
+        )}
+      </Button>
+    </Link>
+  );
+}
 
 export default function DashboardLayout({
   children,
@@ -332,6 +360,7 @@ function DashboardLayoutContent({
                 </div>
               </div>
             </div>
+            <NotificationBell />
           </div>
         )}
         <main className="flex-1 p-4 md:p-6">{children}</main>

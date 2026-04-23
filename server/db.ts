@@ -33,6 +33,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     const values: InsertUser = {
       openId: user.openId,
     };
+    // updateSet: ONLY include fields that have REAL (non-null, non-empty) values.
+    // This prevents overwriting existing valid data with null/empty from OAuth.
     const updateSet: Record<string, unknown> = {};
 
     const textFields = ["name", "email", "loginMethod"] as const;
@@ -41,9 +43,25 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     const assignNullable = (field: TextField) => {
       const value = user[field];
       if (value === undefined) return;
-      const normalized = value ?? null;
-      values[field] = normalized;
-      updateSet[field] = normalized;
+
+      // For INSERT (new user): use the value as-is, or fallback
+      if (field === "name" && (value === null || value === "")) {
+        if (user.email) {
+          const emailPrefix = user.email.split("@")[0];
+          values[field] = emailPrefix || "User";
+        } else {
+          values[field] = "User";
+        }
+        // DO NOT add to updateSet - never overwrite a valid name with a fallback
+      } else if (value === null || value === "") {
+        // For INSERT: set null so the row can be created
+        values[field] = null;
+        // DO NOT add null/empty to updateSet - never overwrite valid data with null
+      } else {
+        // Value is real and non-empty: safe to use for both insert and update
+        values[field] = value;
+        updateSet[field] = value;
+      }
     };
 
     textFields.forEach(assignNullable);

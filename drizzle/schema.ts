@@ -58,10 +58,38 @@ export const occurrenceStatusEnum = mysqlEnum("occurrenceStatus", [
 ]);
 
 export const serviceOrderStatusEnum = mysqlEnum("serviceOrderStatus", [
+  "rascunho",
+  "pendente_aprovacao",
+  "aprovada",
+  "rejeitada",
   "aberta",
   "em_andamento",
   "aguardando_pecas",
   "concluida",
+  "cancelada",
+]);
+
+export const approvalStatusEnum = mysqlEnum("approvalStatus", [
+  "pendente",
+  "aprovado",
+  "rejeitado",
+]);
+
+export const notificationTypeEnum = mysqlEnum("notificationType", [
+  "os_pendente_aprovacao",
+  "os_aprovada",
+  "os_rejeitada",
+  "ocorrencia_nova",
+  "ocorrencia_atualizada",
+  "documento_vencendo",
+  "multa_registrada",
+  "geral",
+]);
+
+export const fineStatusEnum = mysqlEnum("fineStatus", [
+  "pendente",
+  "paga",
+  "recorrida",
   "cancelada",
 ]);
 
@@ -159,6 +187,7 @@ export const vehicles = mysqlTable("vehicles", {
   chassi: varchar("chassi", { length: 50 }),
   renavam: varchar("renavam", { length: 20 }),
   trackingDeviceId: varchar("trackingDeviceId", { length: 100 }), // Para integração futura com telemetria
+  registrationOrigin: mysqlEnum("registrationOrigin", ["manual", "ia"]).default("manual"),
   observations: text("observations"),
   active: boolean("active").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -421,8 +450,13 @@ export const serviceOrders = mysqlTable("serviceOrders", {
   completedAt: timestamp("completedAt"),
   completedById: int("completedById"),
   // Fornecedor/Oficina
+  providerId: int("providerId"), // FK para serviceProviders
   supplierName: varchar("supplierName", { length: 255 }),
   supplierContact: varchar("supplierContact", { length: 100 }),
+  // Aprovação
+  approvedById: int("approvedById"),
+  approvedAt: timestamp("approvedAt"),
+  approvalNotes: text("approvalNotes"),
   // Km no momento da OS
   kmAtOpen: int("kmAtOpen"),
   // Notas
@@ -752,6 +786,131 @@ export const vehiclePhotosRelations = relations(vehiclePhotos, ({ one }) => ({
   }),
   uploadedBy: one(users, {
     fields: [vehiclePhotos.uploadedById],
+    references: [users.id],
+  }),
+}));
+
+
+// ============================================
+// SERVICE PROVIDERS TABLE (Prestadores de Serviço)
+// ============================================
+
+export const serviceProviders = mysqlTable("serviceProviders", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  cnpj: varchar("cnpj", { length: 20 }),
+  phone: varchar("phone", { length: 30 }),
+  email: varchar("email", { length: 255 }),
+  address: text("address"),
+  city: varchar("city", { length: 100 }),
+  state: varchar("state", { length: 2 }),
+  specialties: text("specialties"), // JSON array of specialties
+  rating: decimal("rating", { precision: 3, scale: 2 }),
+  observations: text("observations"),
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ServiceProvider = typeof serviceProviders.$inferSelect;
+export type InsertServiceProvider = typeof serviceProviders.$inferInsert;
+
+// ============================================
+// SERVICE ORDER APPROVALS TABLE (Histórico de Aprovações)
+// ============================================
+
+export const serviceOrderApprovals = mysqlTable("serviceOrderApprovals", {
+  id: int("id").autoincrement().primaryKey(),
+  serviceOrderId: int("serviceOrderId").notNull(),
+  action: approvalStatusEnum.notNull(),
+  userId: int("userId").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ServiceOrderApproval = typeof serviceOrderApprovals.$inferSelect;
+export type InsertServiceOrderApproval = typeof serviceOrderApprovals.$inferInsert;
+
+export const serviceOrderApprovalsRelations = relations(serviceOrderApprovals, ({ one }) => ({
+  serviceOrder: one(serviceOrders, {
+    fields: [serviceOrderApprovals.serviceOrderId],
+    references: [serviceOrders.id],
+  }),
+  user: one(users, {
+    fields: [serviceOrderApprovals.userId],
+    references: [users.id],
+  }),
+}));
+
+// ============================================
+// VEHICLE FINES TABLE (Multas de Veículos)
+// ============================================
+
+export const vehicleFines = mysqlTable("vehicleFines", {
+  id: int("id").autoincrement().primaryKey(),
+  vehicleId: int("vehicleId").notNull(),
+  fineDate: timestamp("fineDate").notNull(),
+  dueDate: timestamp("dueDate"),
+  autoInfracao: varchar("autoInfracao", { length: 50 }), // Número do auto de infração
+  infraction: varchar("infraction", { length: 500 }).notNull(), // Descrição da infração
+  location: varchar("location", { length: 500 }),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  discountAmount: decimal("discountAmount", { precision: 10, scale: 2 }),
+  points: int("points"),
+  status: fineStatusEnum.default("pendente").notNull(),
+  responsibleDriverId: int("responsibleDriverId"), // Motorista responsável
+  paidAt: timestamp("paidAt"),
+  paidAmount: decimal("paidAmount", { precision: 10, scale: 2 }),
+  receiptUrl: text("receiptUrl"),
+  observations: text("observations"),
+  registeredById: int("registeredById").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type VehicleFine = typeof vehicleFines.$inferSelect;
+export type InsertVehicleFine = typeof vehicleFines.$inferInsert;
+
+export const vehicleFinesRelations = relations(vehicleFines, ({ one }) => ({
+  vehicle: one(vehicles, {
+    fields: [vehicleFines.vehicleId],
+    references: [vehicles.id],
+  }),
+  responsibleDriver: one(users, {
+    fields: [vehicleFines.responsibleDriverId],
+    references: [users.id],
+    relationName: "fineDriver",
+  }),
+  registeredBy: one(users, {
+    fields: [vehicleFines.registeredById],
+    references: [users.id],
+    relationName: "fineRegisteredBy",
+  }),
+}));
+
+// ============================================
+// APP NOTIFICATIONS TABLE (Notificações Internas)
+// ============================================
+
+export const appNotifications = mysqlTable("appNotifications", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // Destinatário
+  type: notificationTypeEnum.notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  entityType: varchar("entityType", { length: 50 }), // 'service_order', 'occurrence', etc.
+  entityId: int("entityId"), // ID da entidade relacionada
+  read: boolean("read").default(false).notNull(),
+  readAt: timestamp("readAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AppNotification = typeof appNotifications.$inferSelect;
+export type InsertAppNotification = typeof appNotifications.$inferInsert;
+
+export const appNotificationsRelations = relations(appNotifications, ({ one }) => ({
+  user: one(users, {
+    fields: [appNotifications.userId],
     references: [users.id],
   }),
 }));
