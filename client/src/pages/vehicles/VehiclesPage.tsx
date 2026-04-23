@@ -20,7 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Car, Plus, Eye, Edit, FileText, Wrench, Download, ChevronDown } from "lucide-react";
+import { Car, Plus, Eye, Edit, FileText, Wrench, Download, ChevronDown, Bot } from "lucide-react";
 import { LABELS, VEHICLE_TYPES, VEHICLE_STATUSES } from "@shared/const";
 import { exportToCSV, exportToPDF } from "@/lib/export";
 import { toast } from "sonner";
@@ -219,10 +219,16 @@ export function VehiclesPage() {
               </DropdownMenuContent>
             </DropdownMenu>
             {canEdit && (
-              <Button onClick={() => navigate("/vehicles/new")}>
-                <Plus className="h-4 w-4 mr-2" />
-                Novo Veículo
-              </Button>
+              <>
+                <Button variant="outline" onClick={() => navigate("/vehicles/ai-register")} className="border-primary/50 text-primary hover:bg-primary/10">
+                  <Bot className="h-4 w-4 mr-2" />
+                  Cadastrar por IA
+                </Button>
+                <Button onClick={() => navigate("/vehicles/new")}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Novo Veículo
+                </Button>
+              </>
             )}
           </div>
         }

@@ -124,5 +124,11 @@
 ## Deploy e Republicação
 - [x] Restaurar projeto após reinicialização do webdev
 - [x] Verificar banco de dados com todas as tabelas
-- [ ] Fazer checkpoint e deploy com credenciais renovadas
-- [ ] Verificar site publicado com Prestadores e Multas no menu
+- [x] Fazer checkpoint e deploy com credenciais renovadas
+- [x] Verificar site publicado com Prestadores e Multas no menu
+
+## IA no Cadastro de Veículos
+- [x] Implementar procedure tRPC para extração de dados via IA (foto do CRLV)
+- [x] Adicionar botão de upload de foto na tela de cadastro de veículos
+- [x] Preenchimento automático dos campos a partir da extração da IA
+- [x] Testar funcionalidade completa (4 testes passando)

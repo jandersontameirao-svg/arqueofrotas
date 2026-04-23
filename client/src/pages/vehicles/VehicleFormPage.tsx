@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { PageHeader, Breadcrumb } from "@/components/PageHeader";
@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Car, Loader2 } from "lucide-react";
+import { Car, Loader2, Bot, Upload, CheckCircle, Sparkles } from "lucide-react";
 import { LABELS, VEHICLE_TYPES, VEHICLE_STATUSES } from "@shared/const";
 
 type VehicleFormData = {
@@ -53,6 +53,54 @@ export function VehicleFormPage() {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiSuccess, setAiSuccess] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const extractMutation = trpc.vehicleAI.extractFromDocument.useMutation({
+    onSuccess: (result) => {
+      setAiLoading(false);
+      if (result.success && result.data) {
+        setAiSuccess(true);
+        setFormData((prev) => ({
+          ...prev,
+          plate: result.data!.plate || prev.plate,
+          brand: result.data!.brand || prev.brand,
+          model: result.data!.model || prev.model,
+          year: result.data!.year || prev.year,
+          color: result.data!.color || prev.color,
+          chassi: result.data!.chassi || prev.chassi,
+          renavam: result.data!.renavam || prev.renavam,
+          vehicleType: (result.data!.vehicleType as typeof VEHICLE_TYPES[number]) || prev.vehicleType,
+        }));
+        toast.success("Dados extraídos com sucesso! Revise os campos abaixo.");
+      } else {
+        toast.error(result.error || "Não foi possível extrair os dados. Preencha manualmente.");
+      }
+    },
+    onError: (error) => {
+      setAiLoading(false);
+      toast.error(error.message || "Erro ao processar documento");
+    },
+  });
+
+  const handleAIUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setAiLoading(true);
+    setAiSuccess(false);
+
+    const buffer = await file.arrayBuffer();
+    const base64 = btoa(
+      new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
+    );
+
+    extractMutation.mutate({
+      imageBase64: base64,
+      mimeType: file.type,
+    });
+  };
 
   const { data: vehicle, isLoading: vehicleLoading } = trpc.vehicles.getById.useQuery(
     { id: Number(id) },
@@ -177,6 +225,75 @@ export function VehicleFormPage() {
         icon={Car}
         backLink="/vehicles"
       />
+
+      {/* Seção de Cadastro por IA */}
+      {!isEditing && (
+        <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-transparent">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-primary">
+              <Sparkles className="h-5 w-5" />
+              Cadastro Rápido por IA
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              Envie uma foto do CRLV ou documento do veículo e a IA preencherá os campos automaticamente.
+            </p>
+            {aiSuccess ? (
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800">
+                <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
+                <div>
+                  <p className="font-medium text-green-800 dark:text-green-200 text-sm">Dados extraídos com sucesso!</p>
+                  <p className="text-xs text-green-600 dark:text-green-400">Revise e corrija os campos abaixo antes de salvar.</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto text-green-700"
+                  onClick={() => {
+                    setAiSuccess(false);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }}
+                >
+                  Enviar outro
+                </Button>
+              </div>
+            ) : (
+              <div
+                className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                  aiLoading ? "border-primary/50 bg-primary/5" : "hover:border-primary/50 hover:bg-primary/5"
+                }`}
+                onClick={() => !aiLoading && fileInputRef.current?.click()}
+              >
+                {aiLoading ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="text-sm font-medium">Analisando documento...</p>
+                    <p className="text-xs text-muted-foreground">A IA está extraindo os dados do veículo</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      <Bot className="h-6 w-6 text-primary" />
+                      <Upload className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                    <p className="text-sm font-medium">Clique para enviar foto do documento</p>
+                    <p className="text-xs text-muted-foreground">Aceita: JPG, PNG, WebP (máx. 10MB)</p>
+                  </div>
+                )}
+              </div>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleAIUpload}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
