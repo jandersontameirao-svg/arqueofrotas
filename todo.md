@@ -160,6 +160,12 @@
 - [x] M7: Corrigir erro ao checar checklist (resolvido com M2)
 - [x] Checkup final: 26 testes passando, build OK, dev server sem erros
 
+## Correção: Exclusão Real de Usuários
+- [x] Diagnosticar: procedure de exclusão apenas desativa (active=false)
+- [x] Corrigir backend: filtro WHERE active=true adicionado na query list
+- [x] Corrigir frontend: já estava correto (deactivateMutation + invalidate)
+- [x] Testar sem regressão (build OK, 26 testes passando)
+
 ## Sprint: Exclusão de Checklists e Ocorrências (Módulos 1 e 2)
 - [ ] FASE 1: Diagnóstico completo dos dois módulos
 - [ ] M1: Exclusão real de checklists (soft delete + confirmação + permissão + auditoria)

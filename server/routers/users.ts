@@ -27,6 +27,7 @@ export const usersRouter = router({
       })
       .from(users)
       .leftJoin(units, eq(users.unitId, units.id))
+      .where(eq(users.active, true))
       .orderBy(desc(users.createdAt));
 
     return result;
