@@ -111,3 +111,18 @@
 - [x] Seção de 5 fotos do status atual no cadastro de veículos
 - [x] Exportação PDF com logo e identidade visual do Grupo Arqueo
 - [ ] Apresentação de slides para onboarding dos colaboradores
+
+## Funcionalidades Implementadas (Checkpoint Prestadores/Multas)
+- [x] CRUD de Prestadores de Serviço (cadastro, listagem, edição, exclusão)
+- [x] CRUD de Multas de Veículos (registro, listagem, edição, exclusão)
+- [x] Sistema de Notificações in-app (OS pendente, aprovação, ocorrências, multas)
+- [x] Cadastro de Veículos por IA (extração de dados via foto do documento)
+- [x] Fluxo de Aprovação de Ordens de Serviço
+- [x] CRUD completo de Usuários (criar, editar, desativar)
+- [x] Correções de bugs diversos
+
+## Deploy e Republicação
+- [x] Restaurar projeto após reinicialização do webdev
+- [x] Verificar banco de dados com todas as tabelas
+- [ ] Fazer checkpoint e deploy com credenciais renovadas
+- [ ] Verificar site publicado com Prestadores e Multas no menu
