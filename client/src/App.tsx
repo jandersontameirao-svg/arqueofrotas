@@ -84,6 +84,7 @@ function AppRoutes() {
           {/* Vehicles */}
           <Route path="/vehicles" component={VehiclesPage} />
           <Route path="/vehicles/new" component={VehicleFormPage} />
+          <Route path="/vehicles/ai-register" component={VehicleAIPage} />
           <Route path="/vehicles/:id" component={VehicleDetailPage} />
           <Route path="/vehicles/:id/edit" component={VehicleFormPage} />
 
@@ -163,7 +164,6 @@ function AppRoutes() {
           <Route path="/fines/:id/edit" component={VehicleFineFormPage} />
 
           {/* Vehicle AI Registration */}
-          <Route path="/vehicles/ai-register" component={VehicleAIPage} />
 
           {/* Notifications */}
           <Route path="/notifications" component={NotificationsPage} />
