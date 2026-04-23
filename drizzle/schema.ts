@@ -351,6 +351,9 @@ export const occurrences = mysqlTable("occurrences", {
   closedAt: timestamp("closedAt"),
   closedById: int("closedById"),
   closureNotes: text("closureNotes"),
+  isDeleted: boolean("isDeleted").default(false).notNull(),
+  deletedAt: timestamp("deletedAt"),
+  deletedById: int("deletedById"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

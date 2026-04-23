@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, desc, and, ne } from "drizzle-orm";
+import { eq, desc, and, ne, isNull, or } from "drizzle-orm";
 import { router, protectedProcedure, gestorProcedure, permissionProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import {
@@ -48,6 +48,9 @@ export const occurrencesRouter = router({
         conditions.push(eq(occurrences.severity, input.severity));
       }
 
+      // Always filter out deleted occurrences
+      conditions.push(eq(occurrences.isDeleted, false));
+
       const result = await db
         .select({
           id: occurrences.id,
@@ -67,7 +70,7 @@ export const occurrencesRouter = router({
         .from(occurrences)
         .innerJoin(vehicles, eq(occurrences.vehicleId, vehicles.id))
         .innerJoin(users, eq(occurrences.reportedById, users.id))
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .where(and(...conditions))
         .orderBy(desc(occurrences.createdAt));
 
       return result;
@@ -94,7 +97,7 @@ export const occurrencesRouter = router({
       .from(occurrences)
       .innerJoin(vehicles, eq(occurrences.vehicleId, vehicles.id))
       .innerJoin(users, eq(occurrences.reportedById, users.id))
-      .where(ne(occurrences.status, "encerrado"))
+      .where(and(ne(occurrences.status, "encerrado"), eq(occurrences.isDeleted, false)))
       .orderBy(desc(occurrences.severity), desc(occurrences.createdAt));
 
     return result;
@@ -130,7 +133,7 @@ export const occurrencesRouter = router({
         .from(occurrences)
         .innerJoin(vehicles, eq(occurrences.vehicleId, vehicles.id))
         .innerJoin(users, eq(occurrences.reportedById, users.id))
-        .where(eq(occurrences.id, input.id))
+        .where(and(eq(occurrences.id, input.id), eq(occurrences.isDeleted, false)))
         .limit(1);
 
       if (!occurrence) return null;
@@ -495,10 +498,13 @@ export const occurrencesRouter = router({
         });
       }
 
-      // Logical delete: close the occurrence with deletion note
+      // Logical delete: mark isDeleted=true so it disappears from all listings
       await db
         .update(occurrences)
         .set({
+          isDeleted: true,
+          deletedAt: new Date(),
+          deletedById: ctx.user.id,
           status: "encerrado",
           closedAt: new Date(),
           closedById: ctx.user.id,
@@ -529,7 +535,8 @@ export const occurrencesRouter = router({
         status: occurrences.status,
         severity: occurrences.severity,
       })
-      .from(occurrences);
+      .from(occurrences)
+      .where(eq(occurrences.isDeleted, false));
 
     const total = allOccurrences.length;
     const abertos = allOccurrences.filter((o) => o.status === "aberto").length;
