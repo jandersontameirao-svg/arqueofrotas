@@ -190,3 +190,6 @@
 - [x] Reexecutar o ensaio aditivo de 0009–0012 sobre banco isolado já preparado no estado 0000–0008, incluindo preflight de leitura
 - [x] Bloquear globalmente a suíte de testes contra DATABASE_URL herdada, exigindo FLEET_TEST_DATABASE_URL local para qualquer teste de banco
 - [x] Repetir a matriz de validação após as novas salvaguardas e documentar a tentativa inicial interrompida sem assumir efeito em infraestrutura externa
+
+## Publicação da Revisão 21/10/2026
+- [ ] Criar checkpoint e publicar a versão revisada validada, sem aplicar migrations de banco em produção
