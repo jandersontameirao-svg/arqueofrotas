@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { eq, desc, and, ne, or, sql } from "drizzle-orm";
-import { router, manutencaoProcedure, gestorProcedure, permissionProcedure } from "../_core/trpc";
+import {
+  router,
+  manutencaoProcedure,
+  gestorProcedure,
+  permissionProcedure,
+} from "../_core/trpc";
 import { getDb } from "../db";
 import {
   serviceOrders,
@@ -14,19 +19,29 @@ import {
   occurrences,
 } from "../../drizzle/schema";
 import { createAuditLog, getRequestInfo } from "../audit";
-import { SERVICE_ORDER_STATUSES, MAINTENANCE_TYPES, SEVERITY_LEVELS } from "@shared/const";
+import {
+  SERVICE_ORDER_STATUSES,
+  MAINTENANCE_TYPES,
+  SEVERITY_LEVELS,
+} from "@shared/const";
 import { TRPCError } from "@trpc/server";
 import { storagePut } from "../storage";
+
+import { randomUUID } from "node:crypto";
+import { reconcileVehicle } from "../domain/eligibility";
+import { itemTotal } from "../domain/money";
 
 export const serviceOrdersRouter = router({
   list: manutencaoProcedure
     .input(
-      z.object({
-        vehicleId: z.number().optional(),
-        status: z.enum(SERVICE_ORDER_STATUSES).optional(),
-        maintenanceType: z.enum(MAINTENANCE_TYPES).optional(),
-        assignedToId: z.number().optional(),
-      }).optional()
+      z
+        .object({
+          vehicleId: z.number().optional(),
+          status: z.enum(SERVICE_ORDER_STATUSES).optional(),
+          maintenanceType: z.enum(MAINTENANCE_TYPES).optional(),
+          assignedToId: z.number().optional(),
+        })
+        .optional()
     )
     .query(async ({ input, ctx }) => {
       const db = await getDb();
@@ -50,7 +65,9 @@ export const serviceOrdersRouter = router({
         conditions.push(eq(serviceOrders.status, input.status));
       }
       if (input?.maintenanceType) {
-        conditions.push(eq(serviceOrders.maintenanceType, input.maintenanceType));
+        conditions.push(
+          eq(serviceOrders.maintenanceType, input.maintenanceType)
+        );
       }
 
       const result = await db
@@ -153,8 +170,16 @@ export const serviceOrdersRouter = router({
         .from(serviceOrders)
         .innerJoin(vehicles, eq(serviceOrders.vehicleId, vehicles.id))
         .leftJoin(users, eq(serviceOrders.assignedToId, users.id))
-        .leftJoin(maintenancePlans, eq(serviceOrders.maintenancePlanId, maintenancePlans.id))
-        .where(and(eq(serviceOrders.id, input.id), eq(serviceOrders.isDeleted, false)))
+        .leftJoin(
+          maintenancePlans,
+          eq(serviceOrders.maintenancePlanId, maintenancePlans.id)
+        )
+        .where(
+          and(
+            eq(serviceOrders.id, input.id),
+            eq(serviceOrders.isDeleted, false)
+          )
+        )
         .limit(1);
 
       if (!so) return null;
@@ -216,21 +241,54 @@ export const serviceOrdersRouter = router({
         });
       }
 
-      // Generate unique OS code: OS-NNNN/YYYY
-      const currentYear = new Date().getFullYear();
-      const [countResult] = await db
-        .select({ count: serviceOrders.id })
-        .from(serviceOrders)
-        .where(and(
-          eq(serviceOrders.openedAt, serviceOrders.openedAt) // Just to use the query builder
-        ));
-      
-      // Count existing OS for this year to generate sequential number
-      const existingCount = await db
-        .select({ id: serviceOrders.id })
-        .from(serviceOrders);
-      const nextNumber = existingCount.length + 1;
-      const osCode = `OS-${String(nextNumber).padStart(4, '0')}/${currentYear}`;
+      if (input.occurrenceId) {
+        const [occurrence] = await db
+          .select()
+          .from(occurrences)
+          .where(eq(occurrences.id, input.occurrenceId));
+        if (
+          !occurrence ||
+          occurrence.isDeleted ||
+          occurrence.vehicleId !== input.vehicleId ||
+          occurrence.status === "encerrado" ||
+          occurrence.serviceOrderId
+        )
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Ocorrência incompatível ou já vinculada",
+          });
+      }
+      if (input.maintenancePlanId) {
+        const [plan] = await db
+          .select()
+          .from(maintenancePlans)
+          .where(eq(maintenancePlans.id, input.maintenancePlanId));
+        if (
+          !plan?.active ||
+          (plan.vehicleId && plan.vehicleId !== input.vehicleId)
+        )
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Plano incompatível",
+          });
+      }
+      if (input.assignedToId) {
+        const [assigned] = await db
+          .select()
+          .from(users)
+          .where(eq(users.id, input.assignedToId));
+        if (
+          !assigned?.active ||
+          !["admin", "gestor_frota", "manutencao"].includes(assigned.role)
+        )
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Responsável de manutenção inválido",
+          });
+      }
+      if (vehicle.status === "baixado")
+        throw new TRPCError({ code: "CONFLICT", message: "Veículo baixado" });
+      const osCode = `OS-${randomUUID().replace(/-/g, "").slice(0, 16).toUpperCase()}`;
 
       const result = await db.insert(serviceOrders).values({
         ...input,
@@ -311,7 +369,10 @@ export const serviceOrdersRouter = router({
         });
       }
 
-      await db.update(serviceOrders).set(updateData).where(eq(serviceOrders.id, id));
+      await db
+        .update(serviceOrders)
+        .set(updateData)
+        .where(eq(serviceOrders.id, id));
 
       await createAuditLog({
         user: ctx.user,
@@ -346,7 +407,7 @@ export const serviceOrdersRouter = router({
         });
       }
 
-      if (so.status !== "aberta") {
+      if (!["aberta", "aprovada"].includes(so.status)) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Ordem de serviço não está aberta",
@@ -401,12 +462,16 @@ export const serviceOrdersRouter = router({
         });
       }
 
-      if (so.status === "concluida" || so.status === "cancelada") {
+      if (!["em_andamento", "aguardando_pecas"].includes(so.status))
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "A OS deve estar em execução para ser concluída",
+        });
+      if (!(input.executionNotes ?? so.executionNotes)?.trim())
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Ordem de serviço já está finalizada",
+          message: "Informe o resultado da execução",
         });
-      }
 
       await db
         .update(serviceOrders)
@@ -418,45 +483,20 @@ export const serviceOrdersRouter = router({
         })
         .where(eq(serviceOrders.id, input.id));
 
-      // Release vehicle if requested
-      if (input.releaseVehicle) {
-        // Check if there are other open service orders for this vehicle
-        const otherOpenSOs = await db
-          .select({ id: serviceOrders.id })
-          .from(serviceOrders)
-          .where(
-            and(
-              eq(serviceOrders.vehicleId, so.vehicleId),
-              ne(serviceOrders.id, input.id),
-              or(
-                eq(serviceOrders.status, "aberta"),
-                eq(serviceOrders.status, "em_andamento"),
-                eq(serviceOrders.status, "aguardando_pecas")
-              )
-            )
-          )
-          .limit(1);
-
-        if (otherOpenSOs.length === 0) {
-          await db
-            .update(vehicles)
-            .set({ status: "ativo" })
-            .where(eq(vehicles.id, so.vehicleId));
-
-          await createAuditLog({
-            user: ctx.user,
-            action: "STATUS_CHANGE",
-            entityType: "vehicle",
-            entityId: so.vehicleId,
-            previousData: { status: "manutencao" },
-            newData: { status: "ativo", reason: "Ordem de serviço concluída" },
-            ...getRequestInfo(ctx.req),
-          });
-        }
-      }
-
       // Close linked occurrence if exists
-      if (so.occurrenceId) {
+      if (
+        so.occurrenceId &&
+        ["admin", "gestor_frota"].includes(ctx.user.role)
+      ) {
+        const [linked] = await db
+          .select()
+          .from(occurrences)
+          .where(eq(occurrences.id, so.occurrenceId));
+        if (!linked || linked.vehicleId !== so.vehicleId)
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Vínculo de ocorrência inconsistente; solicite revisão",
+          });
         await db
           .update(occurrences)
           .set({
@@ -478,6 +518,7 @@ export const serviceOrdersRouter = router({
         ...getRequestInfo(ctx.req),
       });
 
+      if (input.releaseVehicle) await reconcileVehicle(db, so.vehicleId);
       return { success: true };
     }),
 
@@ -506,11 +547,14 @@ export const serviceOrdersRouter = router({
         });
       }
 
+      if (["concluida", "cancelada"].includes(so.status))
+        throw new TRPCError({ code: "CONFLICT", message: "OS já finalizada" });
       await db
         .update(serviceOrders)
         .set({
           status: "cancelada",
-          executionNotes: `${so.executionNotes ?? ""}\nCancelamento: ${input.reason}`.trim(),
+          executionNotes:
+            `${so.executionNotes ?? ""}\nCancelamento: ${input.reason}`.trim(),
         })
         .where(eq(serviceOrders.id, input.id));
 
@@ -542,7 +586,12 @@ export const serviceOrdersRouter = router({
       const [so] = await db
         .select()
         .from(serviceOrders)
-        .where(and(eq(serviceOrders.id, input.id), eq(serviceOrders.isDeleted, false)))
+        .where(
+          and(
+            eq(serviceOrders.id, input.id),
+            eq(serviceOrders.isDeleted, false)
+          )
+        )
         .limit(1);
 
       if (!so) {
@@ -558,7 +607,8 @@ export const serviceOrdersRouter = router({
           isDeleted: true,
           deletedAt: new Date(),
           deletedById: ctx.user.id,
-          executionNotes: `${so.executionNotes ?? ""}\nExcluído por ${ctx.user.name}: ${input.reason}`.trim(),
+          executionNotes:
+            `${so.executionNotes ?? ""}\nExcluído por ${ctx.user.name}: ${input.reason}`.trim(),
         })
         .where(eq(serviceOrders.id, input.id));
 
@@ -568,7 +618,11 @@ export const serviceOrdersRouter = router({
         entityType: "service_order",
         entityId: input.id,
         previousData: { status: so.status, osCode: so.osCode },
-        newData: { isDeleted: true, reason: input.reason, deletedById: ctx.user.id },
+        newData: {
+          isDeleted: true,
+          reason: input.reason,
+          deletedById: ctx.user.id,
+        },
         ...getRequestInfo(ctx.req),
       });
 
@@ -591,7 +645,14 @@ export const serviceOrdersRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
-      const result = await db.insert(serviceOrderItems).values(input);
+      const totalPrice = itemTotal(
+        input.quantity,
+        input.unitPrice,
+        input.totalPrice
+      );
+      const result = await db
+        .insert(serviceOrderItems)
+        .values({ ...input, totalPrice });
 
       await createAuditLog({
         user: ctx.user,
@@ -618,7 +679,9 @@ export const serviceOrdersRouter = router({
         .where(eq(serviceOrderItems.id, input.id))
         .limit(1);
 
-      await db.delete(serviceOrderItems).where(eq(serviceOrderItems.id, input.id));
+      await db
+        .delete(serviceOrderItems)
+        .where(eq(serviceOrderItems.id, input.id));
 
       await createAuditLog({
         user: ctx.user,
@@ -649,7 +712,11 @@ export const serviceOrdersRouter = router({
 
       const buffer = Buffer.from(input.fileData, "base64");
       const key = `service-orders/${input.serviceOrderId}/${Date.now()}-${input.fileName}`;
-      const uploadResult = await storagePut(key, buffer, input.fileType ?? "application/octet-stream");
+      const uploadResult = await storagePut(
+        key,
+        buffer,
+        input.fileType ?? "application/octet-stream"
+      );
 
       const result = await db.insert(serviceOrderAttachments).values({
         serviceOrderId: input.serviceOrderId,
@@ -666,7 +733,10 @@ export const serviceOrdersRouter = router({
         action: "CREATE",
         entityType: "service_order_attachment",
         entityId: result[0].insertId,
-        newData: { serviceOrderId: input.serviceOrderId, fileName: input.fileName },
+        newData: {
+          serviceOrderId: input.serviceOrderId,
+          fileName: input.fileName,
+        },
         ...getRequestInfo(ctx.req),
       });
 
@@ -687,11 +757,17 @@ export const serviceOrdersRouter = router({
         .limit(1);
 
       if (!so) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "OS não encontrada" });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "OS não encontrada",
+        });
       }
 
-      if (so.status !== "rascunho" && so.status !== "aberta") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "OS não pode ser enviada para aprovação neste status" });
+      if (!["rascunho", "aberta", "rejeitada"].includes(so.status)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "OS não pode ser enviada para aprovação neste status",
+        });
       }
 
       await db
@@ -711,13 +787,12 @@ export const serviceOrdersRouter = router({
       const gestores = await db
         .select({ id: users.id })
         .from(users)
-        .where(and(
-          eq(users.active, true),
-          or(
-            eq(users.role, "admin"),
-            eq(users.role, "gestor_frota")
+        .where(
+          and(
+            eq(users.active, true),
+            or(eq(users.role, "admin"), eq(users.role, "gestor_frota"))
           )
-        ));
+        );
 
       for (const gestor of gestores) {
         if (gestor.id !== ctx.user.id) {
@@ -747,10 +822,12 @@ export const serviceOrdersRouter = router({
 
   // Approve OS
   approve: gestorProcedure
-    .input(z.object({
-      id: z.number(),
-      notes: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        id: z.number(),
+        notes: z.string().optional(),
+      })
+    )
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
@@ -762,11 +839,17 @@ export const serviceOrdersRouter = router({
         .limit(1);
 
       if (!so) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "OS não encontrada" });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "OS não encontrada",
+        });
       }
 
       if (so.status !== "pendente_aprovacao") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "OS não está pendente de aprovação" });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "OS não está pendente de aprovação",
+        });
       }
 
       await db
@@ -804,7 +887,11 @@ export const serviceOrdersRouter = router({
         entityType: "service_order",
         entityId: input.id,
         previousData: { status: "pendente_aprovacao" },
-        newData: { status: "aprovada", approvedById: ctx.user.id, notes: input.notes },
+        newData: {
+          status: "aprovada",
+          approvedById: ctx.user.id,
+          notes: input.notes,
+        },
         ...getRequestInfo(ctx.req),
       });
 
@@ -813,10 +900,12 @@ export const serviceOrdersRouter = router({
 
   // Reject OS
   reject: gestorProcedure
-    .input(z.object({
-      id: z.number(),
-      notes: z.string().min(1, "Motivo da rejeição é obrigatório"),
-    }))
+    .input(
+      z.object({
+        id: z.number(),
+        notes: z.string().min(1, "Motivo da rejeição é obrigatório"),
+      })
+    )
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
@@ -828,11 +917,17 @@ export const serviceOrdersRouter = router({
         .limit(1);
 
       if (!so) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "OS não encontrada" });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "OS não encontrada",
+        });
       }
 
       if (so.status !== "pendente_aprovacao") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "OS não está pendente de aprovação" });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "OS não está pendente de aprovação",
+        });
       }
 
       await db
@@ -917,19 +1012,30 @@ export const serviceOrdersRouter = router({
       .where(eq(serviceOrders.isDeleted, false));
 
     const total = allSOs.length;
-    const abertas = allSOs.filter((so) => so.status === "aberta").length;
-    const emAndamento = allSOs.filter((so) => so.status === "em_andamento").length;
-    const aguardandoPecas = allSOs.filter((so) => so.status === "aguardando_pecas").length;
-    const concluidas = allSOs.filter((so) => so.status === "concluida").length;
-    const preventivas = allSOs.filter((so) => so.maintenanceType === "preventiva").length;
-    const corretivas = allSOs.filter((so) => so.maintenanceType === "corretiva").length;
+    const abertas = allSOs.filter(so => so.status === "aberta").length;
+    const emAndamento = allSOs.filter(
+      so => so.status === "em_andamento"
+    ).length;
+    const aguardandoPecas = allSOs.filter(
+      so => so.status === "aguardando_pecas"
+    ).length;
+    const concluidas = allSOs.filter(so => so.status === "concluida").length;
+    const preventivas = allSOs.filter(
+      so => so.maintenanceType === "preventiva"
+    ).length;
+    const corretivas = allSOs.filter(
+      so => so.maintenanceType === "corretiva"
+    ).length;
 
     // Calculate average completion time for completed orders
-    const completedSOs = allSOs.filter((so) => so.status === "concluida" && so.completedAt && so.openedAt);
+    const completedSOs = allSOs.filter(
+      so => so.status === "concluida" && so.completedAt && so.openedAt
+    );
     let avgCompletionDays = 0;
     if (completedSOs.length > 0) {
       const totalDays = completedSOs.reduce((sum, so) => {
-        const diff = new Date(so.completedAt!).getTime() - new Date(so.openedAt).getTime();
+        const diff =
+          new Date(so.completedAt!).getTime() - new Date(so.openedAt).getTime();
         return sum + diff / (1000 * 60 * 60 * 24);
       }, 0);
       avgCompletionDays = Math.round(totalDays / completedSOs.length);

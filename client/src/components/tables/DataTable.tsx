@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import { useState, useMemo } from "react";
 
+import { filterRows } from "@shared/filter-rows";
+
 export interface Column<T> {
   key: string;
   header: string;
@@ -49,6 +51,7 @@ interface DataTableProps<T> {
   searchable?: boolean;
   searchPlaceholder?: string;
   searchKeys?: string[];
+  onSearchChange?: (value: string) => void;
   pageSize?: number;
   isLoading?: boolean;
   emptyMessage?: string;
@@ -63,6 +66,7 @@ export function DataTable<T extends Record<string, unknown>>({
   searchable = true,
   searchPlaceholder = "Buscar...",
   searchKeys = [],
+  onSearchChange,
   pageSize = 10,
   isLoading = false,
   emptyMessage = "Nenhum registro encontrado",
@@ -75,18 +79,10 @@ export function DataTable<T extends Record<string, unknown>>({
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   // Filter data based on search
-  const filteredData = useMemo(() => {
-    if (!search || searchKeys.length === 0) return data;
-
-    const lowerSearch = search.toLowerCase();
-    return data.filter((row) =>
-      searchKeys.some((key) => {
-        const value = row[key];
-        if (value == null) return false;
-        return String(value).toLowerCase().includes(lowerSearch);
-      })
-    );
-  }, [data, search, searchKeys]);
+  const filteredData = useMemo(
+    () => filterRows(data, search, searchKeys),
+    [data, search, searchKeys]
+  );
 
   // Sort data
   const sortedData = useMemo(() => {
@@ -115,6 +111,7 @@ export function DataTable<T extends Record<string, unknown>>({
   // Reset page when search changes
   const handleSearch = (value: string) => {
     setSearch(value);
+    onSearchChange?.(value);
     setCurrentPage(1);
   };
 
@@ -136,7 +133,7 @@ export function DataTable<T extends Record<string, unknown>>({
             <Input
               placeholder={searchPlaceholder}
               value={search}
-              onChange={(e) => handleSearch(e.target.value)}
+              onChange={e => handleSearch(e.target.value)}
               className="pl-9"
             />
           </div>
@@ -147,11 +144,12 @@ export function DataTable<T extends Record<string, unknown>>({
         <Table>
           <TableHeader>
             <TableRow>
-              {columns.map((column) => (
+              {columns.map(column => (
                 <TableHead
                   key={column.key}
                   className={cn(
-                    column.sortable && "cursor-pointer select-none hover:bg-muted/50",
+                    column.sortable &&
+                      "cursor-pointer select-none hover:bg-muted/50",
                     column.className
                   )}
                   onClick={() => column.sortable && handleSort(column.key)}
@@ -194,27 +192,33 @@ export function DataTable<T extends Record<string, unknown>>({
               paginatedData.map((row, index) => (
                 <TableRow
                   key={index}
-                  className={cn(onRowClick && "cursor-pointer hover:bg-muted/50")}
+                  className={cn(
+                    onRowClick && "cursor-pointer hover:bg-muted/50"
+                  )}
                   onClick={() => onRowClick?.(row)}
                 >
-                  {columns.map((column) => (
+                  {columns.map(column => (
                     <TableCell key={column.key} className={column.className}>
                       {column.cell
                         ? column.cell(row)
-                        : (row[column.key] as React.ReactNode) ?? "-"}
+                        : ((row[column.key] as React.ReactNode) ?? "-")}
                     </TableCell>
                   ))}
                   {actions && actions.length > 0 && (
-                    <TableCell onClick={(e) => e.stopPropagation()}>
+                    <TableCell onClick={e => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                          >
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           {actions
-                            .filter((action) => !action.hidden?.(row))
+                            .filter(action => !action.hidden?.(row))
                             .map((action, actionIndex) => (
                               <DropdownMenuItem
                                 key={actionIndex}

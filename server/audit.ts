@@ -56,34 +56,31 @@ interface AuditLogParams {
 }
 
 export async function createAuditLog(params: AuditLogParams): Promise<void> {
-  try {
-    const db = await getDb();
-    if (!db) {
-      console.warn("[Audit] Cannot create audit log: database not available");
-      return;
-    }
-
-    await db.insert(auditLogs).values({
-      userId: params.user?.id ?? null,
-      userName: params.user?.name ?? null,
-      action: params.action,
-      entityType: params.entityType,
-      entityId: params.entityId ?? null,
-      previousData: params.previousData ?? null,
-      newData: params.newData ?? null,
-      ipAddress: params.ipAddress ?? null,
-      userAgent: params.userAgent ?? null,
-    });
-  } catch (error) {
-    // Log error but don't throw - audit should not break main operations
-    console.error("Failed to create audit log:", error);
-  }
+  const db = await getDb();
+  if (!db) throw new Error("Audit database unavailable");
+  await db.insert(auditLogs).values({
+    userId: params.user?.id ?? null,
+    userName: params.user?.name ?? null,
+    action: params.action,
+    entityType: params.entityType,
+    entityId: params.entityId ?? null,
+    previousData: params.previousData
+      ? sanitizeForAudit(params.previousData)
+      : null,
+    newData: params.newData ? sanitizeForAudit(params.newData) : null,
+    ipAddress: params.ipAddress ?? null,
+    userAgent: params.userAgent ?? null,
+  });
 }
 
 // Helper to extract request info for audit
-export function getRequestInfo(req: { ip?: string; headers?: Record<string, string | string[] | undefined> }) {
+export function getRequestInfo(req: {
+  ip?: string;
+  headers?: Record<string, string | string[] | undefined>;
+}) {
   return {
-    ipAddress: req.ip ?? req.headers?.["x-forwarded-for"]?.toString() ?? undefined,
+    ipAddress:
+      req.ip ?? req.headers?.["x-forwarded-for"]?.toString() ?? undefined,
     userAgent: req.headers?.["user-agent"]?.toString() ?? undefined,
   };
 }
@@ -91,7 +88,14 @@ export function getRequestInfo(req: { ip?: string; headers?: Record<string, stri
 // Helper to sanitize data for audit (remove sensitive fields)
 export function sanitizeForAudit<T extends Record<string, unknown>>(
   data: T,
-  sensitiveFields: string[] = ["password", "token", "secret"]
+  sensitiveFields: string[] = [
+    "password",
+    "token",
+    "secret",
+    "photoData",
+    "fileData",
+    "openId",
+  ]
 ): Record<string, unknown> {
   const sanitized: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(data)) {

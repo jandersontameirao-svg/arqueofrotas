@@ -1,12 +1,16 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users } from "../drizzle/schema";
-import { ENV } from './_core/env';
+import { ENV } from "./_core/env";
+
+import { domainDb } from "./domain/runtime";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
+  const transaction = domainDb.getStore();
+  if (transaction) return transaction;
   if (!_db && process.env.DATABASE_URL) {
     try {
       _db = drizzle(process.env.DATABASE_URL);
@@ -74,8 +78,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       values.role = user.role;
       updateSet.role = user.role;
     } else if (user.openId === ENV.ownerOpenId) {
-      values.role = 'admin';
-      updateSet.role = 'admin';
+      values.role = "admin"; // Bootstrap new owner only; never restore a revoked role during a request.
     }
 
     if (!values.lastSignedIn) {
@@ -102,7 +105,11 @@ export async function getUserByOpenId(openId: string) {
     return undefined;
   }
 
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  const result = await db
+    .select()
+    .from(users)
+    .where(eq(users.openId, openId))
+    .limit(1);
 
   return result.length > 0 ? result[0] : undefined;
 }

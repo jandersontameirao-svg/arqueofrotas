@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { registerEvidenceRoute } from "../evidenceRoute";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
@@ -35,6 +36,7 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  registerEvidenceRoute(app);
   // tRPC API
   app.use(
     "/api/trpc",

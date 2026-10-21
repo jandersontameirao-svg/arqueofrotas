@@ -1,21 +1,42 @@
 import { z } from "zod";
 import { eq, desc, and, or, like, sql } from "drizzle-orm";
-import { router, gestorProcedure, protectedProcedure, permissionProcedure } from "../_core/trpc";
+import {
+  router,
+  gestorProcedure,
+  protectedProcedure,
+  permissionProcedure,
+} from "../_core/trpc";
 import { getDb } from "../db";
-import { vehicles, units, projects, users, vehicleDocuments } from "../../drizzle/schema";
+import {
+  vehicles,
+  units,
+  projects,
+  users,
+  vehicleDocuments,
+  vehicleHolds,
+} from "../../drizzle/schema";
 import { createAuditLog, getRequestInfo } from "../audit";
 import { VEHICLE_TYPES, VEHICLE_STATUSES } from "@shared/const";
 import { TRPCError } from "@trpc/server";
 
+import {
+  vehicleEligibility,
+  validateInterval,
+  reconcileVehicle,
+} from "../domain/eligibility";
+import { recordKm } from "../domain/odometer";
+
 export const vehiclesRouter = router({
   list: protectedProcedure
     .input(
-      z.object({
-        status: z.enum(VEHICLE_STATUSES).optional(),
-        unitId: z.number().optional(),
-        vehicleType: z.enum(VEHICLE_TYPES).optional(),
-        search: z.string().optional(),
-      }).optional()
+      z
+        .object({
+          status: z.enum(VEHICLE_STATUSES).optional(),
+          unitId: z.number().optional(),
+          vehicleType: z.enum(VEHICLE_TYPES).optional(),
+          search: z.string().optional(),
+        })
+        .optional()
     )
     .query(async ({ input }) => {
       const db = await getDb();
@@ -54,6 +75,7 @@ export const vehiclesRouter = router({
           status: vehicles.status,
           unitId: vehicles.unitId,
           unitName: units.name,
+          revision: vehicles.revision,
           currentKm: vehicles.currentKm,
           currentResponsibleId: vehicles.currentResponsibleId,
           currentResponsibleName: users.name,
@@ -81,6 +103,7 @@ export const vehiclesRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
+      validateInterval(input.startDate, input.endDate);
       // Get vehicles that are active and not in maintenance/baixado
       const conditions = [
         eq(vehicles.active, true),
@@ -100,6 +123,7 @@ export const vehiclesRouter = router({
           vehicleType: vehicles.vehicleType,
           unitId: vehicles.unitId,
           unitName: units.name,
+          revision: vehicles.revision,
           currentKm: vehicles.currentKm,
         })
         .from(vehicles)
@@ -107,7 +131,20 @@ export const vehiclesRouter = router({
         .where(and(...conditions))
         .orderBy(vehicles.plate);
 
-      return result;
+      const availability = await Promise.all(
+        result.map(async vehicle => ({
+          vehicle,
+          state: await vehicleEligibility(
+            db,
+            vehicle.id,
+            input.startDate,
+            input.endDate
+          ),
+        }))
+      );
+      return availability
+        .filter(entry => entry.state.eligible)
+        .map(entry => entry.vehicle);
     }),
 
   getById: protectedProcedure
@@ -132,6 +169,7 @@ export const vehiclesRouter = router({
           defaultProjectName: projects.name,
           currentResponsibleId: vehicles.currentResponsibleId,
           currentResponsibleName: users.name,
+          revision: vehicles.revision,
           currentKm: vehicles.currentKm,
           chassi: vehicles.chassi,
           renavam: vehicles.renavam,
@@ -154,10 +192,14 @@ export const vehiclesRouter = router({
   create: gestorProcedure
     .input(
       z.object({
+        statusReason: z.string().trim().min(3).max(1000).optional(),
         plate: z.string().min(1, "Placa é obrigatória").max(10),
         model: z.string().min(1, "Modelo é obrigatório"),
         brand: z.string().optional(),
-        year: z.number().min(1900).max(new Date().getFullYear() + 1),
+        year: z
+          .number()
+          .min(1900)
+          .max(new Date().getFullYear() + 1),
         color: z.string().optional(),
         vehicleType: z.enum(VEHICLE_TYPES),
         status: z.enum(VEHICLE_STATUSES).default("ativo"),
@@ -189,11 +231,25 @@ export const vehiclesRouter = router({
         });
       }
 
+      const { statusReason, ...values } = input;
+      if (input.status !== "ativo" && !statusReason)
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Informe o motivo da situação inicial",
+        });
       const result = await db.insert(vehicles).values({
-        ...input,
+        ...values,
         plate: input.plate.toUpperCase(),
       });
       const insertId = result[0].insertId;
+      if (input.status !== "ativo")
+        await db
+          .insert(vehicleHolds)
+          .values({
+            vehicleId: insertId,
+            userId: ctx.user.id,
+            reason: statusReason!,
+          });
 
       await createAuditLog({
         user: ctx.user,
@@ -211,10 +267,15 @@ export const vehiclesRouter = router({
     .input(
       z.object({
         id: z.number(),
+        statusReason: z.string().trim().min(3).max(1000).optional(),
         plate: z.string().min(1).max(10).optional(),
         model: z.string().min(1).optional(),
         brand: z.string().optional(),
-        year: z.number().min(1900).max(new Date().getFullYear() + 1).optional(),
+        year: z
+          .number()
+          .min(1900)
+          .max(new Date().getFullYear() + 1)
+          .optional(),
         color: z.string().optional(),
         vehicleType: z.enum(VEHICLE_TYPES).optional(),
         status: z.enum(VEHICLE_STATUSES).optional(),
@@ -231,7 +292,7 @@ export const vehiclesRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
-      const { id, ...updateData } = input;
+      const { id, statusReason, ...updateData } = input;
 
       // If updating plate, check for duplicates
       if (updateData.plate) {
@@ -262,6 +323,55 @@ export const vehiclesRouter = router({
         .where(eq(vehicles.id, id))
         .limit(1);
 
+      if (!previous)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Veículo não encontrado",
+        });
+      if (updateData.status && updateData.status !== previous.status) {
+        if (!statusReason)
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Informe o motivo da mudança de situação",
+          });
+        if (updateData.status === "ativo") {
+          const state = await vehicleEligibility(
+            db,
+            id,
+            undefined,
+            undefined,
+            undefined,
+            true
+          );
+          if (
+            state.reasons.some(reason =>
+              ["ocorrencia_critica", "ordem_servico", "em_uso"].includes(reason)
+            )
+          )
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "Existem restrições impeditivas abertas",
+            });
+          await db
+            .update(vehicleHolds)
+            .set({
+              active: false,
+              releasedAt: new Date(),
+              releasedById: ctx.user.id,
+            })
+            .where(
+              and(eq(vehicleHolds.vehicleId, id), eq(vehicleHolds.active, true))
+            );
+        } else {
+          await db
+            .insert(vehicleHolds)
+            .values({
+              vehicleId: id,
+              userId: ctx.user.id,
+              reason: statusReason,
+            });
+        }
+      }
       await db.update(vehicles).set(updateData).where(eq(vehicles.id, id));
 
       // If status changed, log it specifically
@@ -272,7 +382,7 @@ export const vehiclesRouter = router({
           entityType: "vehicle",
           entityId: id,
           previousData: { status: previous.status },
-          newData: { status: updateData.status },
+          newData: { status: updateData.status, reason: statusReason },
           ...getRequestInfo(ctx.req),
         });
       } else {
@@ -296,7 +406,7 @@ export const vehiclesRouter = router({
       z.object({
         id: z.number(),
         newKm: z.number().min(0),
-        reason: z.string().min(1, "Motivo é obrigatório"),
+        reason: z.string().trim().min(3, "Motivo é obrigatório"),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -310,10 +420,15 @@ export const vehiclesRouter = router({
         .where(eq(vehicles.id, input.id))
         .limit(1);
 
-      await db
-        .update(vehicles)
-        .set({ currentKm: input.newKm })
-        .where(eq(vehicles.id, input.id));
+      await recordKm(
+        db,
+        ctx.user,
+        input.id,
+        input.newKm,
+        "correction",
+        new Date(),
+        input.reason
+      );
 
       await createAuditLog({
         user: ctx.user,
@@ -372,9 +487,11 @@ export const vehiclesRouter = router({
       .where(eq(vehicles.active, true));
 
     const total = allVehicles.length;
-    const ativos = allVehicles.filter((v) => v.status === "ativo").length;
-    const emManutencao = allVehicles.filter((v) => v.status === "manutencao").length;
-    const baixados = allVehicles.filter((v) => v.status === "baixado").length;
+    const ativos = allVehicles.filter(v => v.status === "ativo").length;
+    const emManutencao = allVehicles.filter(
+      v => v.status === "manutencao"
+    ).length;
+    const baixados = allVehicles.filter(v => v.status === "baixado").length;
 
     return {
       total,

@@ -22,11 +22,20 @@ import { vehicleFinesRouter } from "./routers/vehicleFines";
 import { notificationsRouter } from "./routers/notifications";
 import { vehicleAIRouter } from "./routers/vehicleAI";
 
+import { reservationsRouter } from "./routers/reservations";
+
+import { driverRouter } from "./routers/driver";
+
+import { reportsRouter } from "./routers/reports";
+import { integrationRouter } from "./routers/integration";
+
 export const appRouter = router({
   system: systemRouter,
-  
+
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
+    me: publicProcedure.query(opts =>
+      opts.ctx.user?.active ? opts.ctx.user : null
+    ),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
@@ -37,6 +46,10 @@ export const appRouter = router({
   }),
 
   // Feature routers
+  reports: reportsRouter,
+  integration: integrationRouter,
+  driver: driverRouter,
+  reservations: reservationsRouter,
   units: unitsRouter,
   projects: projectsRouter,
   users: usersRouter,

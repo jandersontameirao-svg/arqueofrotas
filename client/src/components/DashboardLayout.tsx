@@ -48,6 +48,7 @@ import { trpc } from "@/lib/trpc";
 import { Link } from "wouter";
 
 const menuItems = [
+  { icon: Car, label: "Operação do motorista", path: "/driver" },
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: Car, label: "Veículos", path: "/vehicles" },
   { icon: ClipboardCheck, label: "Checklists", path: "/checklists" },
@@ -58,7 +59,11 @@ const menuItems = [
 ];
 
 const adminMenuItems = [
-  { icon: ClipboardList, label: "Templates Checklist", path: "/checklist-templates" },
+  {
+    icon: ClipboardList,
+    label: "Templates Checklist",
+    path: "/checklist-templates",
+  },
   { icon: Users, label: "Usuários", path: "/users" },
   { icon: FileText, label: "Auditoria", path: "/audit" },
 ];
@@ -76,7 +81,12 @@ function NotificationBell() {
 
   return (
     <Link to="/notifications">
-      <Button variant="ghost" size="icon" className="relative">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="relative"
+        aria-label="Notificações"
+      >
         <Bell className="h-5 w-5" />
         {count > 0 && (
           <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
@@ -119,7 +129,8 @@ export default function DashboardLayout({
               ArqueoFrotas
             </h1>
             <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Sistema de Gestão de Frotas do Grupo Arqueo. Faça login para continuar.
+              Sistema de Gestão de Frotas do Grupo Arqueo. Faça login para
+              continuar.
             </p>
           </div>
           <Button
@@ -166,8 +177,9 @@ function DashboardLayoutContent({
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const allMenuItems = user?.role === "admin" ? [...menuItems, ...adminMenuItems] : menuItems;
-  const activeMenuItem = allMenuItems.find((item) => {
+  const allMenuItems =
+    user?.role === "admin" ? [...menuItems, ...adminMenuItems] : menuItems;
+  const activeMenuItem = allMenuItems.find(item => {
     if (item.path === "/") return location === "/";
     return location.startsWith(item.path);
   });
@@ -209,7 +221,9 @@ function DashboardLayoutContent({
     };
   }, [isResizing, setSidebarWidth]);
 
-  const roleLabel = user?.role ? LABELS.roles[user.role as keyof typeof LABELS.roles] : "";
+  const roleLabel = user?.role
+    ? LABELS.roles[user.role as keyof typeof LABELS.roles]
+    : "";
 
   return (
     <>
@@ -230,7 +244,11 @@ function DashboardLayoutContent({
               </button>
               {!isCollapsed ? (
                 <div className="flex items-center gap-2 min-w-0">
-                  <img src="/logo.svg" alt="Grupo Arqueo" className="h-6 w-6 shrink-0" />
+                  <img
+                    src="/logo.svg"
+                    alt="Grupo Arqueo"
+                    className="h-6 w-6 shrink-0"
+                  />
                   <span className="font-semibold tracking-tight truncate">
                     ArqueoFrotas
                   </span>
@@ -241,7 +259,7 @@ function DashboardLayoutContent({
 
           <SidebarContent className="gap-0">
             <SidebarMenu className="px-2 py-1">
-              {menuItems.map((item) => {
+              {menuItems.map(item => {
                 const isActive =
                   item.path === "/"
                     ? location === "/"
@@ -276,7 +294,7 @@ function DashboardLayoutContent({
                       Administração
                     </p>
                   )}
-                  {adminMenuItems.map((item) => {
+                  {adminMenuItems.map(item => {
                     const isActive = location.startsWith(item.path);
                     return (
                       <SidebarMenuItem key={item.path}>
@@ -313,7 +331,10 @@ function DashboardLayoutContent({
                       {user?.name || "-"}
                     </p>
                     <div className="flex items-center gap-2 mt-1.5">
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] px-1.5 py-0"
+                      >
                         {roleLabel}
                       </Badge>
                     </div>
@@ -363,7 +384,7 @@ function DashboardLayoutContent({
             <NotificationBell />
           </div>
         )}
-        <main className="flex-1 p-4 md:p-6">{children}</main>
+        <div className="flex-1 p-4 md:p-6">{children}</div>
       </SidebarInset>
     </>
   );

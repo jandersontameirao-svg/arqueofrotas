@@ -3,7 +3,13 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { PageHeader, Breadcrumb } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -48,12 +54,17 @@ export function ChecklistExecutePage() {
   const preselectedVehicleId = searchParams.get("vehicleId");
   const preselectedReservationId = searchParams.get("reservationId");
 
+  const [commandId] = useState(() => crypto.randomUUID());
   const [step, setStep] = useState<"select" | "execute" | "review">("select");
-  const [vehicleId, setVehicleId] = useState<number>(preselectedVehicleId ? Number(preselectedVehicleId) : 0);
+  const [vehicleId, setVehicleId] = useState<number>(
+    preselectedVehicleId ? Number(preselectedVehicleId) : 0
+  );
   const [templateId, setTemplateId] = useState<number>(0);
   const [km, setKm] = useState<string>("");
   const [currentItemIndex, setCurrentItemIndex] = useState(0);
-  const [responses, setResponses] = useState<Map<number, ChecklistResponse>>(new Map());
+  const [responses, setResponses] = useState<Map<number, ChecklistResponse>>(
+    new Map()
+  );
   const [currentPhoto, setCurrentPhoto] = useState<string | null>(null);
   const [observations, setObservations] = useState("");
 
@@ -78,32 +89,35 @@ export function ChecklistExecutePage() {
     },
   });
 
-  const selectedVehicle = vehicles?.find((v) => v.id === vehicleId);
-  const selectedTemplate = templates?.find((t) => t.id === templateId);
+  const selectedVehicle = vehicles?.find(v => v.id === vehicleId);
+  const selectedTemplate = templates?.find(t => t.id === templateId);
   const items = templateItems;
   const currentItem = items[currentItemIndex];
 
-  const progress = items.length > 0 ? ((responses.size / items.length) * 100) : 0;
-  const hasIssues = Array.from(responses.values()).some((r) => r.response === "nao_ok");
+  const progress = items.length > 0 ? (responses.size / items.length) * 100 : 0;
+  const hasIssues = Array.from(responses.values()).some(
+    r => r.response === "nao_ok"
+  );
 
   const handleResponse = (response: "ok" | "nao_ok" | "na") => {
     if (!currentItem) return;
 
-    setResponses((prev) => {
+    setResponses(prev => {
       const newMap = new Map(prev);
       newMap.set(currentItem.id, {
         templateItemId: currentItem.id,
         response,
         comment: prev.get(currentItem.id)?.comment,
-        photoData: currentPhoto ?? undefined,
+        photoData: currentPhoto ?? prev.get(currentItem.id)?.photoData,
+        photoFileName: prev.get(currentItem.id)?.photoFileName ?? "foto.jpg",
       });
       return newMap;
     });
 
     // Auto-advance to next item
-    if (currentItemIndex < items.length - 1) {
+    if (response !== "nao_ok" && currentItemIndex < items.length - 1) {
       setTimeout(() => {
-        setCurrentItemIndex((prev) => prev + 1);
+        setCurrentItemIndex(prev => prev + 1);
         setCurrentPhoto(null);
       }, 300);
     }
@@ -112,7 +126,7 @@ export function ChecklistExecutePage() {
   const handleObservation = (comment: string) => {
     if (!currentItem) return;
 
-    setResponses((prev) => {
+    setResponses(prev => {
       const newMap = new Map(prev);
       const existing = prev.get(currentItem.id);
       if (existing) {
@@ -127,12 +141,25 @@ export function ChecklistExecutePage() {
     input.type = "file";
     input.accept = "image/*";
     input.capture = "environment";
-    input.onchange = (e) => {
+    input.onchange = e => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
         const reader = new FileReader();
-        reader.onload = (e) => {
-          setCurrentPhoto(e.target?.result as string);
+        reader.onload = e => {
+          const data = e.target?.result as string;
+          setCurrentPhoto(data);
+          if (currentItem)
+            setResponses(prev => {
+              const existing = prev.get(currentItem.id);
+              if (!existing) return prev;
+              const updated = new Map(prev);
+              updated.set(currentItem.id, {
+                ...existing,
+                photoData: data,
+                photoFileName: file.name,
+              });
+              return updated;
+            });
         };
         reader.readAsDataURL(file);
       }
@@ -152,6 +179,8 @@ export function ChecklistExecutePage() {
     }
 
     submitMutation.mutate({
+      idempotencyKey: commandId,
+      requestId: commandId,
       vehicleId,
       templateId,
       km: km ? Number(km) : undefined,
@@ -187,13 +216,13 @@ export function ChecklistExecutePage() {
               <Label>Veículo *</Label>
               <Select
                 value={vehicleId?.toString() ?? ""}
-                onValueChange={(v) => setVehicleId(Number(v))}
+                onValueChange={v => setVehicleId(Number(v))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o veículo" />
                 </SelectTrigger>
                 <SelectContent>
-                  {vehicles?.map((vehicle) => (
+                  {vehicles?.map(vehicle => (
                     <SelectItem key={vehicle.id} value={vehicle.id.toString()}>
                       {vehicle.plate} - {vehicle.model}
                     </SelectItem>
@@ -206,14 +235,17 @@ export function ChecklistExecutePage() {
               <Label>Template de Checklist *</Label>
               <Select
                 value={templateId?.toString() ?? ""}
-                onValueChange={(v) => setTemplateId(Number(v))}
+                onValueChange={v => setTemplateId(Number(v))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o template" />
                 </SelectTrigger>
                 <SelectContent>
-                  {templates?.map((template) => (
-                    <SelectItem key={template.id} value={template.id.toString()}>
+                  {templates?.map(template => (
+                    <SelectItem
+                      key={template.id}
+                      value={template.id.toString()}
+                    >
                       {template.name}
                     </SelectItem>
                   ))}
@@ -226,7 +258,7 @@ export function ChecklistExecutePage() {
               <Input
                 type="number"
                 value={km}
-                onChange={(e) => setKm(e.target.value)}
+                onChange={e => setKm(e.target.value)}
                 placeholder="Ex: 45000"
               />
             </div>
@@ -274,7 +306,9 @@ export function ChecklistExecutePage() {
         {currentItem && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">{currentItem.description}</CardTitle>
+              <CardTitle className="text-lg">
+                {currentItem.description}
+              </CardTitle>
               {currentItem.category && (
                 <CardDescription>{currentItem.category}</CardDescription>
               )}
@@ -324,9 +358,10 @@ export function ChecklistExecutePage() {
               </div>
 
               {/* Photo capture */}
-              {currentItem.isCritical && (
+              {(currentItem.isCritical ||
+                responses.get(currentItem.id)?.response === "nao_ok") && (
                 <div className="space-y-2">
-                  <Label>Foto (recomendado para itens críticos)</Label>
+                  <Label>Foto (obrigatória para Não OK)</Label>
                   {currentPhoto ? (
                     <div className="relative">
                       <img
@@ -361,7 +396,7 @@ export function ChecklistExecutePage() {
                 <Label>Observação</Label>
                 <Textarea
                   value={responses.get(currentItem.id)?.comment ?? ""}
-                  onChange={(e) => handleObservation(e.target.value)}
+                  onChange={e => handleObservation(e.target.value)}
                   placeholder="Adicione uma observação se necessário..."
                   rows={2}
                 />
@@ -377,7 +412,7 @@ export function ChecklistExecutePage() {
               variant="outline"
               className="flex-1"
               disabled={currentItemIndex === 0}
-              onClick={() => setCurrentItemIndex((prev) => prev - 1)}
+              onClick={() => setCurrentItemIndex(prev => prev - 1)}
             >
               <ChevronLeft className="h-4 w-4 mr-1" />
               Anterior
@@ -386,7 +421,7 @@ export function ChecklistExecutePage() {
               <Button
                 className="flex-1"
                 disabled={!responses.has(currentItem?.id ?? 0)}
-                onClick={() => setCurrentItemIndex((prev) => prev + 1)}
+                onClick={() => setCurrentItemIndex(prev => prev + 1)}
               >
                 Próximo
                 <ChevronRight className="h-4 w-4 ml-1" />
@@ -440,19 +475,31 @@ export function ChecklistExecutePage() {
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
               <p className="text-2xl font-bold text-green-600">
-                {Array.from(responses.values()).filter((r) => r.response === "ok").length}
+                {
+                  Array.from(responses.values()).filter(
+                    r => r.response === "ok"
+                  ).length
+                }
               </p>
               <p className="text-xs text-muted-foreground">OK</p>
             </div>
             <div>
               <p className="text-2xl font-bold text-red-600">
-                {Array.from(responses.values()).filter((r) => r.response === "nao_ok").length}
+                {
+                  Array.from(responses.values()).filter(
+                    r => r.response === "nao_ok"
+                  ).length
+                }
               </p>
               <p className="text-xs text-muted-foreground">Não OK</p>
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-600">
-                {Array.from(responses.values()).filter((r) => r.response === "na").length}
+                {
+                  Array.from(responses.values()).filter(
+                    r => r.response === "na"
+                  ).length
+                }
               </p>
               <p className="text-xs text-muted-foreground">N/A</p>
             </div>
@@ -468,7 +515,10 @@ export function ChecklistExecutePage() {
           </CardHeader>
           <CardContent className="space-y-2">
             {items
-              .filter((item: { id: number; description: string }) => responses.get(item.id)?.response === "nao_ok")
+              .filter(
+                (item: { id: number; description: string }) =>
+                  responses.get(item.id)?.response === "nao_ok"
+              )
               .map((item: { id: number; description: string }) => (
                 <div
                   key={item.id}
@@ -494,7 +544,7 @@ export function ChecklistExecutePage() {
         <CardContent>
           <Textarea
             value={observations}
-            onChange={(e) => setObservations(e.target.value)}
+            onChange={e => setObservations(e.target.value)}
             placeholder="Adicione observações gerais sobre o checklist..."
             rows={3}
           />
@@ -503,7 +553,11 @@ export function ChecklistExecutePage() {
 
       {/* Actions */}
       <div className="flex gap-2">
-        <Button variant="outline" className="flex-1" onClick={() => setStep("execute")}>
+        <Button
+          variant="outline"
+          className="flex-1"
+          onClick={() => setStep("execute")}
+        >
           <ChevronLeft className="h-4 w-4 mr-1" />
           Voltar
         </Button>
@@ -512,7 +566,9 @@ export function ChecklistExecutePage() {
           disabled={submitMutation.isPending}
           onClick={handleSubmit}
         >
-          {submitMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          {submitMutation.isPending && (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          )}
           Enviar Checklist
         </Button>
       </div>

@@ -9,7 +9,7 @@ import { FINE_STATUSES } from "@shared/const";
 export const vehicleFinesRouter = router({
   listByVehicle: protectedProcedure
     .input(z.object({ vehicleId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
@@ -37,7 +37,15 @@ export const vehicleFinesRouter = router({
         })
         .from(vehicleFines)
         .leftJoin(users, eq(vehicleFines.responsibleDriverId, users.id))
-        .where(and(eq(vehicleFines.vehicleId, input.vehicleId), eq(vehicleFines.isDeleted, false)))
+        .where(
+          and(
+            eq(vehicleFines.vehicleId, input.vehicleId),
+            eq(vehicleFines.isDeleted, false),
+            !["admin", "gestor_frota"].includes(ctx.user.role)
+              ? eq(vehicleFines.responsibleDriverId, ctx.user.id)
+              : undefined
+          )
+        )
         .orderBy(desc(vehicleFines.fineDate));
 
       return result;
@@ -45,9 +53,11 @@ export const vehicleFinesRouter = router({
 
   listAll: gestorProcedure
     .input(
-      z.object({
-        status: z.enum(FINE_STATUSES).optional(),
-      }).optional()
+      z
+        .object({
+          status: z.enum(FINE_STATUSES).optional(),
+        })
+        .optional()
     )
     .query(async ({ input }) => {
       const db = await getDb();
@@ -128,7 +138,9 @@ export const vehicleFinesRouter = router({
         infraction: input.infraction,
         location: input.location,
         amount: String(input.amount),
-        discountAmount: input.discountAmount ? String(input.discountAmount) : undefined,
+        discountAmount: input.discountAmount
+          ? String(input.discountAmount)
+          : undefined,
         points: input.points,
         status: "pendente",
         responsibleDriverId: input.responsibleDriverId,
@@ -187,7 +199,11 @@ export const vehicleFinesRouter = router({
       const setData: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(updateFields)) {
         if (value === undefined) continue; // skip undefined (not sent)
-        if (key === "amount" || key === "discountAmount" || key === "paidAmount") {
+        if (
+          key === "amount" ||
+          key === "discountAmount" ||
+          key === "paidAmount"
+        ) {
           setData[key] = value !== null ? String(value) : null;
         } else {
           setData[key] = value;
@@ -198,10 +214,7 @@ export const vehicleFinesRouter = router({
         return { success: true };
       }
 
-      await db
-        .update(vehicleFines)
-        .set(setData)
-        .where(eq(vehicleFines.id, id));
+      await db.update(vehicleFines).set(setData).where(eq(vehicleFines.id, id));
 
       await createAuditLog({
         user: ctx.user,
@@ -248,7 +261,11 @@ export const vehicleFinesRouter = router({
         entityType: "vehicle_fine",
         entityId: input.id,
         previousData: previous as Record<string, unknown>,
-        newData: { isDeleted: true, deletedById: ctx.user.id, deletedAt: new Date().toISOString() } as Record<string, unknown>,
+        newData: {
+          isDeleted: true,
+          deletedById: ctx.user.id,
+          deletedAt: new Date().toISOString(),
+        } as Record<string, unknown>,
         ...getRequestInfo(ctx.req),
       });
 
@@ -286,7 +303,11 @@ export const vehicleFinesRouter = router({
         entityType: "vehicle_fine",
         entityId: input.id,
         previousData: previous as Record<string, unknown>,
-        newData: { isDeleted: true, deletedById: ctx.user.id, deletedAt: new Date().toISOString() } as Record<string, unknown>,
+        newData: {
+          isDeleted: true,
+          deletedById: ctx.user.id,
+          deletedAt: new Date().toISOString(),
+        } as Record<string, unknown>,
         ...getRequestInfo(ctx.req),
       });
 
@@ -306,10 +327,13 @@ export const vehicleFinesRouter = router({
       .from(vehicleFines)
       .where(eq(vehicleFines.isDeleted, false));
 
-    const pendentes = allFines.filter((f) => f.status === "pendente");
-    const pagas = allFines.filter((f) => f.status === "paga");
+    const pendentes = allFines.filter(f => f.status === "pendente");
+    const pagas = allFines.filter(f => f.status === "paga");
 
-    const totalPendente = pendentes.reduce((sum, f) => sum + Number(f.amount || 0), 0);
+    const totalPendente = pendentes.reduce(
+      (sum, f) => sum + Number(f.amount || 0),
+      0
+    );
     const totalPago = pagas.reduce((sum, f) => sum + Number(f.amount || 0), 0);
 
     return {

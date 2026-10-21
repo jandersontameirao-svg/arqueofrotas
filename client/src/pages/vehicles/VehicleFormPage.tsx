@@ -24,8 +24,8 @@ type VehicleFormData = {
   brand: string;
   year: number;
   color: string;
-  vehicleType: typeof VEHICLE_TYPES[number];
-  status: typeof VEHICLE_STATUSES[number];
+  vehicleType: (typeof VEHICLE_TYPES)[number];
+  status: (typeof VEHICLE_STATUSES)[number];
   unitId?: number;
   chassi: string;
   renavam: string;
@@ -52,17 +52,18 @@ export function VehicleFormPage() {
     observations: "",
   });
 
+  const [statusReason, setStatusReason] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [aiLoading, setAiLoading] = useState(false);
   const [aiSuccess, setAiSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const extractMutation = trpc.vehicleAI.extractFromDocument.useMutation({
-    onSuccess: (result) => {
+    onSuccess: result => {
       setAiLoading(false);
       if (result.success && result.data) {
         setAiSuccess(true);
-        setFormData((prev) => ({
+        setFormData(prev => ({
           ...prev,
           plate: result.data!.plate || prev.plate,
           brand: result.data!.brand || prev.brand,
@@ -71,14 +72,19 @@ export function VehicleFormPage() {
           color: result.data!.color || prev.color,
           chassi: result.data!.chassi || prev.chassi,
           renavam: result.data!.renavam || prev.renavam,
-          vehicleType: (result.data!.vehicleType as typeof VEHICLE_TYPES[number]) || prev.vehicleType,
+          vehicleType:
+            (result.data!.vehicleType as (typeof VEHICLE_TYPES)[number]) ||
+            prev.vehicleType,
         }));
         toast.success("Dados extraídos com sucesso! Revise os campos abaixo.");
       } else {
-        toast.error(result.error || "Não foi possível extrair os dados. Preencha manualmente.");
+        toast.error(
+          result.error ||
+            "Não foi possível extrair os dados. Preencha manualmente."
+        );
       }
     },
-    onError: (error) => {
+    onError: error => {
       setAiLoading(false);
       toast.error(error.message || "Erro ao processar documento");
     },
@@ -93,7 +99,10 @@ export function VehicleFormPage() {
 
     const buffer = await file.arrayBuffer();
     const base64 = btoa(
-      new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
+      new Uint8Array(buffer).reduce(
+        (data, byte) => data + String.fromCharCode(byte),
+        ""
+      )
     );
 
     extractMutation.mutate({
@@ -102,22 +111,20 @@ export function VehicleFormPage() {
     });
   };
 
-  const { data: vehicle, isLoading: vehicleLoading } = trpc.vehicles.getById.useQuery(
-    { id: Number(id) },
-    { enabled: isEditing }
-  );
+  const { data: vehicle, isLoading: vehicleLoading } =
+    trpc.vehicles.getById.useQuery({ id: Number(id) }, { enabled: isEditing });
 
   const { data: units } = trpc.units.listActive.useQuery();
 
   const utils = trpc.useUtils();
 
   const createMutation = trpc.vehicles.create.useMutation({
-    onSuccess: (data) => {
+    onSuccess: data => {
       toast.success("Veículo cadastrado com sucesso!");
       utils.vehicles.list.invalidate();
       navigate(`/vehicles/${data.id}`);
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(error.message || "Erro ao cadastrar veículo");
     },
   });
@@ -129,7 +136,7 @@ export function VehicleFormPage() {
       utils.vehicles.getById.invalidate({ id: Number(id) });
       navigate(`/vehicles/${id}`);
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(error.message || "Erro ao atualizar veículo");
     },
   });
@@ -162,7 +169,11 @@ export function VehicleFormPage() {
     if (!formData.model) {
       newErrors.model = "Modelo é obrigatório";
     }
-    if (!formData.year || formData.year < 1900 || formData.year > new Date().getFullYear() + 1) {
+    if (
+      !formData.year ||
+      formData.year < 1900 ||
+      formData.year > new Date().getFullYear() + 1
+    ) {
       newErrors.year = "Ano inválido";
     }
 
@@ -187,16 +198,26 @@ export function VehicleFormPage() {
     };
 
     if (isEditing) {
-      updateMutation.mutate({ id: Number(id), ...data });
+      updateMutation.mutate({
+        id: Number(id),
+        ...data,
+        statusReason: statusReason || undefined,
+      });
     } else {
-      createMutation.mutate(data);
+      createMutation.mutate({
+        ...data,
+        statusReason: statusReason || undefined,
+      });
     }
   };
 
-  const handleChange = (field: keyof VehicleFormData, value: string | number | undefined) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+  const handleChange = (
+    field: keyof VehicleFormData,
+    value: string | number | undefined
+  ) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: "" }));
+      setErrors(prev => ({ ...prev, [field]: "" }));
     }
   };
 
@@ -221,7 +242,11 @@ export function VehicleFormPage() {
 
       <PageHeader
         title={isEditing ? `Editar ${vehicle?.plate}` : "Novo Veículo"}
-        description={isEditing ? "Atualize os dados do veículo" : "Cadastre um novo veículo na frota"}
+        description={
+          isEditing
+            ? "Atualize os dados do veículo"
+            : "Cadastre um novo veículo na frota"
+        }
         icon={Car}
         backLink="/vehicles"
       />
@@ -237,14 +262,19 @@ export function VehicleFormPage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-4">
-              Envie uma foto do CRLV ou documento do veículo e a IA preencherá os campos automaticamente.
+              Envie uma foto do CRLV ou documento do veículo e a IA preencherá
+              os campos automaticamente.
             </p>
             {aiSuccess ? (
               <div className="flex items-center gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800">
                 <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
                 <div>
-                  <p className="font-medium text-green-800 dark:text-green-200 text-sm">Dados extraídos com sucesso!</p>
-                  <p className="text-xs text-green-600 dark:text-green-400">Revise e corrija os campos abaixo antes de salvar.</p>
+                  <p className="font-medium text-green-800 dark:text-green-200 text-sm">
+                    Dados extraídos com sucesso!
+                  </p>
+                  <p className="text-xs text-green-600 dark:text-green-400">
+                    Revise e corrija os campos abaixo antes de salvar.
+                  </p>
                 </div>
                 <Button
                   type="button"
@@ -262,15 +292,21 @@ export function VehicleFormPage() {
             ) : (
               <div
                 className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-                  aiLoading ? "border-primary/50 bg-primary/5" : "hover:border-primary/50 hover:bg-primary/5"
+                  aiLoading
+                    ? "border-primary/50 bg-primary/5"
+                    : "hover:border-primary/50 hover:bg-primary/5"
                 }`}
                 onClick={() => !aiLoading && fileInputRef.current?.click()}
               >
                 {aiLoading ? (
                   <div className="flex flex-col items-center gap-2">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="text-sm font-medium">Analisando documento...</p>
-                    <p className="text-xs text-muted-foreground">A IA está extraindo os dados do veículo</p>
+                    <p className="text-sm font-medium">
+                      Analisando documento...
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      A IA está extraindo os dados do veículo
+                    </p>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-2">
@@ -278,8 +314,12 @@ export function VehicleFormPage() {
                       <Bot className="h-6 w-6 text-primary" />
                       <Upload className="h-6 w-6 text-muted-foreground" />
                     </div>
-                    <p className="text-sm font-medium">Clique para enviar foto do documento</p>
-                    <p className="text-xs text-muted-foreground">Aceita: JPG, PNG, WebP (máx. 10MB)</p>
+                    <p className="text-sm font-medium">
+                      Clique para enviar foto do documento
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Aceita: JPG, PNG, WebP (máx. 10MB)
+                    </p>
                   </div>
                 )}
               </div>
@@ -306,25 +346,32 @@ export function VehicleFormPage() {
               <Input
                 id="plate"
                 value={formData.plate}
-                onChange={(e) => handleChange("plate", e.target.value)}
+                onChange={e => handleChange("plate", e.target.value)}
                 placeholder="ABC1D23"
                 className="uppercase"
                 maxLength={8}
               />
-              {errors.plate && <p className="text-sm text-destructive">{errors.plate}</p>}
+              {errors.plate && (
+                <p className="text-sm text-destructive">{errors.plate}</p>
+              )}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="vehicleType">Tipo *</Label>
               <Select
                 value={formData.vehicleType}
-                onValueChange={(v) => handleChange("vehicleType", v as typeof VEHICLE_TYPES[number])}
+                onValueChange={v =>
+                  handleChange(
+                    "vehicleType",
+                    v as (typeof VEHICLE_TYPES)[number]
+                  )
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o tipo" />
                 </SelectTrigger>
                 <SelectContent>
-                  {VEHICLE_TYPES.map((type) => (
+                  {VEHICLE_TYPES.map(type => (
                     <SelectItem key={type} value={type}>
                       {LABELS.vehicleTypes[type]}
                     </SelectItem>
@@ -338,7 +385,7 @@ export function VehicleFormPage() {
               <Input
                 id="brand"
                 value={formData.brand}
-                onChange={(e) => handleChange("brand", e.target.value)}
+                onChange={e => handleChange("brand", e.target.value)}
                 placeholder="Ex: Volkswagen"
               />
             </div>
@@ -348,10 +395,12 @@ export function VehicleFormPage() {
               <Input
                 id="model"
                 value={formData.model}
-                onChange={(e) => handleChange("model", e.target.value)}
+                onChange={e => handleChange("model", e.target.value)}
                 placeholder="Ex: Gol 1.6"
               />
-              {errors.model && <p className="text-sm text-destructive">{errors.model}</p>}
+              {errors.model && (
+                <p className="text-sm text-destructive">{errors.model}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -360,11 +409,13 @@ export function VehicleFormPage() {
                 id="year"
                 type="number"
                 value={formData.year}
-                onChange={(e) => handleChange("year", Number(e.target.value))}
+                onChange={e => handleChange("year", Number(e.target.value))}
                 min={1900}
                 max={new Date().getFullYear() + 1}
               />
-              {errors.year && <p className="text-sm text-destructive">{errors.year}</p>}
+              {errors.year && (
+                <p className="text-sm text-destructive">{errors.year}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -372,7 +423,7 @@ export function VehicleFormPage() {
               <Input
                 id="color"
                 value={formData.color}
-                onChange={(e) => handleChange("color", e.target.value)}
+                onChange={e => handleChange("color", e.target.value)}
                 placeholder="Ex: Branco"
               />
             </div>
@@ -389,7 +440,7 @@ export function VehicleFormPage() {
               <Input
                 id="chassi"
                 value={formData.chassi}
-                onChange={(e) => handleChange("chassi", e.target.value)}
+                onChange={e => handleChange("chassi", e.target.value)}
                 placeholder="Número do chassi"
               />
             </div>
@@ -399,7 +450,7 @@ export function VehicleFormPage() {
               <Input
                 id="renavam"
                 value={formData.renavam}
-                onChange={(e) => handleChange("renavam", e.target.value)}
+                onChange={e => handleChange("renavam", e.target.value)}
                 placeholder="Número do Renavam"
               />
             </div>
@@ -412,16 +463,31 @@ export function VehicleFormPage() {
           </CardHeader>
           <CardContent className="grid gap-6 md:grid-cols-2">
             <div className="space-y-2">
+              {((isEditing && vehicle && formData.status !== vehicle.status) ||
+                (!isEditing && formData.status !== "ativo")) && (
+                <label className="block">
+                  Motivo da mudança de situação
+                  <input
+                    className="w-full rounded border p-2"
+                    required
+                    minLength={3}
+                    value={statusReason}
+                    onChange={e => setStatusReason(e.target.value)}
+                  />
+                </label>
+              )}
               <Label htmlFor="status">Status *</Label>
               <Select
                 value={formData.status}
-                onValueChange={(v) => handleChange("status", v as typeof VEHICLE_STATUSES[number])}
+                onValueChange={v =>
+                  handleChange("status", v as (typeof VEHICLE_STATUSES)[number])
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o status" />
                 </SelectTrigger>
                 <SelectContent>
-                  {VEHICLE_STATUSES.map((status) => (
+                  {VEHICLE_STATUSES.map(status => (
                     <SelectItem key={status} value={status}>
                       {LABELS.vehicleStatuses[status]}
                     </SelectItem>
@@ -434,14 +500,19 @@ export function VehicleFormPage() {
               <Label htmlFor="unitId">Unidade</Label>
               <Select
                 value={formData.unitId?.toString() ?? "none"}
-                onValueChange={(v) => handleChange("unitId", v && v !== "none" ? Number(v) : undefined)}
+                onValueChange={v =>
+                  handleChange(
+                    "unitId",
+                    v && v !== "none" ? Number(v) : undefined
+                  )
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione a unidade" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Nenhuma</SelectItem>
-                  {units?.map((unit) => (
+                  {units?.map(unit => (
                     <SelectItem key={unit.id} value={unit.id.toString()}>
                       {unit.name}
                     </SelectItem>
@@ -456,10 +527,14 @@ export function VehicleFormPage() {
                 id="currentKm"
                 type="number"
                 value={formData.currentKm}
-                onChange={(e) => handleChange("currentKm", Number(e.target.value))}
+                onChange={e =>
+                  handleChange("currentKm", Number(e.target.value))
+                }
                 min={0}
               />
-              <p className="text-xs text-muted-foreground">Quilometragem atual do veículo</p>
+              <p className="text-xs text-muted-foreground">
+                Quilometragem atual do veículo
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -471,7 +546,7 @@ export function VehicleFormPage() {
           <CardContent>
             <Textarea
               value={formData.observations}
-              onChange={(e) => handleChange("observations", e.target.value)}
+              onChange={e => handleChange("observations", e.target.value)}
               placeholder="Observações adicionais sobre o veículo..."
               rows={4}
             />

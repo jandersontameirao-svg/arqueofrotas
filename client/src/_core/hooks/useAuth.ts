@@ -20,6 +20,8 @@ export function useAuth(options?: UseAuthOptions) {
 
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => {
+      localStorage.removeItem("arqueofrotas-offline-identity");
+      localStorage.removeItem("manus-runtime-user-info");
       utils.auth.me.setData(undefined, null);
     },
   });
@@ -42,15 +44,51 @@ export function useAuth(options?: UseAuthOptions) {
   }, [logoutMutation, utils]);
 
   const state = useMemo(() => {
-    localStorage.setItem(
-      "manus-runtime-user-info",
-      JSON.stringify(meQuery.data)
-    );
+    const liveUser = meQuery.data;
+    let localUser: typeof liveUser;
+    if (liveUser) {
+      const { id, name, role } = liveUser;
+      localStorage.setItem(
+        "arqueofrotas-offline-identity",
+        JSON.stringify({ id, name, role })
+      );
+      localStorage.removeItem("manus-runtime-user-info");
+    } else if (
+      !navigator.onLine &&
+      ["/driver", "/"].includes(window.location.pathname)
+    ) {
+      try {
+        const cached = JSON.parse(
+          localStorage.getItem("arqueofrotas-offline-identity") || "null"
+        );
+        if (
+          cached &&
+          Number.isInteger(cached.id) &&
+          ["motorista", "admin", "gestor_frota", "manutencao"].includes(
+            cached.role
+          )
+        )
+          localUser = {
+            ...cached,
+            active: true,
+            openId: "",
+            email: null,
+            phone: null,
+            unitId: null,
+            loginMethod: null,
+            createdAt: new Date(0),
+            updatedAt: new Date(0),
+            lastSignedIn: new Date(0),
+          };
+      } catch {
+        /* No local identity means login is required. */
+      }
+    }
     return {
-      user: meQuery.data ?? null,
-      loading: meQuery.isLoading || logoutMutation.isPending,
+      user: liveUser ?? localUser ?? null,
+      loading: (!localUser && meQuery.isLoading) || logoutMutation.isPending,
       error: meQuery.error ?? logoutMutation.error ?? null,
-      isAuthenticated: Boolean(meQuery.data),
+      isAuthenticated: Boolean(liveUser ?? localUser),
     };
   }, [
     meQuery.data,
@@ -67,7 +105,7 @@ export function useAuth(options?: UseAuthOptions) {
     if (typeof window === "undefined") return;
     if (window.location.pathname === redirectPath) return;
 
-    window.location.href = redirectPath
+    window.location.href = redirectPath;
   }, [
     redirectOnUnauthenticated,
     redirectPath,

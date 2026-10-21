@@ -8,6 +8,8 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 
+import { DriverPage } from "@/pages/driver/DriverPage";
+
 // Pages
 import { DashboardPage } from "@/pages/dashboard/DashboardPage";
 import { VehiclesPage } from "@/pages/vehicles/VehiclesPage";
@@ -38,7 +40,9 @@ import { VehicleAIPage } from "@/pages/vehicles/VehicleAIPage";
 import { NotificationsPage } from "@/pages/notifications/NotificationsPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth({ redirectOnUnauthenticated: true });
+  const { isAuthenticated, loading } = useAuth({
+    redirectOnUnauthenticated: true,
+  });
 
   if (loading) {
     return (
@@ -73,13 +77,18 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function HomePage() {
+  const { user } = useAuth();
+  return user?.role === "motorista" ? <DriverPage /> : <DashboardPage />;
+}
 function AppRoutes() {
   return (
     <ProtectedRoute>
       <DashboardLayout>
         <Switch>
           {/* Dashboard */}
-          <Route path="/" component={DashboardPage} />
+          <Route path="/" component={HomePage} />
+          <Route path="/driver" component={DriverPage} />
 
           {/* Vehicles */}
           <Route path="/vehicles" component={VehiclesPage} />
@@ -105,14 +114,14 @@ function AppRoutes() {
             </AdminRoute>
           </Route>
           <Route path="/checklist-templates/:id">
-            {(params) => (
+            {params => (
               <AdminRoute>
                 <ChecklistTemplateDetailPage />
               </AdminRoute>
             )}
           </Route>
           <Route path="/checklist-templates/:id/edit">
-            {(params) => (
+            {params => (
               <AdminRoute>
                 <ChecklistTemplateFormPage />
               </AdminRoute>
@@ -128,7 +137,10 @@ function AppRoutes() {
           {/* Service Orders */}
           <Route path="/service-orders" component={ServiceOrdersPage} />
           <Route path="/service-orders/new" component={ServiceOrderFormPage} />
-          <Route path="/service-orders/:id" component={ServiceOrderDetailPage} />
+          <Route
+            path="/service-orders/:id"
+            component={ServiceOrderDetailPage}
+          />
 
           {/* Users - Admin only */}
           <Route path="/users">
@@ -154,8 +166,14 @@ function AppRoutes() {
 
           {/* Service Providers */}
           <Route path="/service-providers" component={ServiceProvidersPage} />
-          <Route path="/service-providers/new" component={ServiceProviderFormPage} />
-          <Route path="/service-providers/:id/edit" component={ServiceProviderFormPage} />
+          <Route
+            path="/service-providers/new"
+            component={ServiceProviderFormPage}
+          />
+          <Route
+            path="/service-providers/:id/edit"
+            component={ServiceProviderFormPage}
+          />
 
           {/* Vehicle Fines */}
           <Route path="/fines" component={VehicleFinesPage} />

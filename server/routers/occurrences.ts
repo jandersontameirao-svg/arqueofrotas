@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { eq, desc, and, ne, isNull, or } from "drizzle-orm";
-import { router, protectedProcedure, gestorProcedure, permissionProcedure } from "../_core/trpc";
+import {
+  router,
+  protectedProcedure,
+  gestorProcedure,
+  permissionProcedure,
+} from "../_core/trpc";
 import { getDb } from "../db";
 import {
   occurrences,
@@ -15,15 +20,20 @@ import { SEVERITY_LEVELS, OCCURRENCE_STATUSES } from "@shared/const";
 import { TRPCError } from "@trpc/server";
 import { storagePut } from "../storage";
 
+import { persistPhoto } from "../domain/evidence";
+import { reconcileVehicle } from "../domain/eligibility";
+
 export const occurrencesRouter = router({
   list: protectedProcedure
     .input(
-      z.object({
-        vehicleId: z.number().optional(),
-        status: z.enum(OCCURRENCE_STATUSES).optional(),
-        severity: z.enum(SEVERITY_LEVELS).optional(),
-        reportedById: z.number().optional(),
-      }).optional()
+      z
+        .object({
+          vehicleId: z.number().optional(),
+          status: z.enum(OCCURRENCE_STATUSES).optional(),
+          severity: z.enum(SEVERITY_LEVELS).optional(),
+          reportedById: z.number().optional(),
+        })
+        .optional()
     )
     .query(async ({ input, ctx }) => {
       const db = await getDb();
@@ -97,7 +107,12 @@ export const occurrencesRouter = router({
       .from(occurrences)
       .innerJoin(vehicles, eq(occurrences.vehicleId, vehicles.id))
       .innerJoin(users, eq(occurrences.reportedById, users.id))
-      .where(and(ne(occurrences.status, "encerrado"), eq(occurrences.isDeleted, false)))
+      .where(
+        and(
+          ne(occurrences.status, "encerrado"),
+          eq(occurrences.isDeleted, false)
+        )
+      )
       .orderBy(desc(occurrences.severity), desc(occurrences.createdAt));
 
     return result;
@@ -133,7 +148,9 @@ export const occurrencesRouter = router({
         .from(occurrences)
         .innerJoin(vehicles, eq(occurrences.vehicleId, vehicles.id))
         .innerJoin(users, eq(occurrences.reportedById, users.id))
-        .where(and(eq(occurrences.id, input.id), eq(occurrences.isDeleted, false)))
+        .where(
+          and(eq(occurrences.id, input.id), eq(occurrences.isDeleted, false))
+        )
         .limit(1);
 
       if (!occurrence) return null;
@@ -212,17 +229,21 @@ export const occurrencesRouter = router({
       const insertId = result[0].insertId;
 
       // Upload photo if provided
-      if (photoData && photoFileName) {
-        const buffer = Buffer.from(photoData, "base64");
-        const key = `occurrences/${insertId}/${Date.now()}-${photoFileName}`;
-        const uploadResult = await storagePut(key, buffer, "image/jpeg");
+      if (photoData) {
+        const photo = await persistPhoto(
+          db,
+          ctx.user.id,
+          input.vehicleId,
+          photoData,
+          photoFileName
+        );
 
         await db.insert(occurrenceAttachments).values({
           occurrenceId: insertId,
-          fileUrl: uploadResult.url,
-          fileName: photoFileName,
-          fileType: "image/jpeg",
-          fileSize: buffer.length,
+          fileUrl: photo.url,
+          fileName: photo.fileName,
+          fileType: photo.mimeType,
+          fileSize: photo.size,
           uploadedById: ctx.user.id,
         });
       }
@@ -240,7 +261,10 @@ export const occurrencesRouter = router({
           entityType: "vehicle",
           entityId: input.vehicleId,
           previousData: { status: vehicle.status },
-          newData: { status: "manutencao", reason: "Ocorrência de alta severidade" },
+          newData: {
+            status: "manutencao",
+            reason: "Ocorrência de alta severidade",
+          },
           ...getRequestInfo(ctx.req),
         });
       }
@@ -290,7 +314,43 @@ export const occurrencesRouter = router({
         });
       }
 
-      await db.update(occurrences).set(updateData).where(eq(occurrences.id, id));
+      if (
+        input.vehicleId !== undefined &&
+        input.vehicleId !== previous.vehicleId
+      )
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "O veículo de uma ocorrência não pode ser trocado",
+        });
+      if (
+        input.reportedById !== undefined &&
+        input.reportedById !== previous.reportedById
+      )
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "O relator original deve ser preservado",
+        });
+      if (input.status === "encerrado" || previous.status === "encerrado")
+        throw new TRPCError({
+          code: "CONFLICT",
+          message:
+            "Use o encerramento com motivo; ocorrência encerrada não pode ser alterada",
+        });
+      await db
+        .update(occurrences)
+        .set(updateData)
+        .where(eq(occurrences.id, id));
+      if (input.severity === "alta")
+        await db
+          .update(vehicles)
+          .set({ status: "manutencao" })
+          .where(
+            and(
+              eq(vehicles.id, previous.vehicleId),
+              ne(vehicles.status, "baixado")
+            )
+          );
+      await reconcileVehicle(db, previous.vehicleId);
 
       await createAuditLog({
         user: ctx.user,
@@ -310,7 +370,9 @@ export const occurrencesRouter = router({
     .input(
       z.object({
         id: z.number(),
-        closureNotes: z.string().min(1, "Notas de encerramento são obrigatórias"),
+        closureNotes: z
+          .string()
+          .min(1, "Notas de encerramento são obrigatórias"),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -358,6 +420,7 @@ export const occurrencesRouter = router({
         ...getRequestInfo(ctx.req),
       });
 
+      await reconcileVehicle(db, previous.vehicleId);
       return { success: true };
     }),
 
@@ -373,20 +436,35 @@ export const occurrencesRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
-      // Verify service order exists
+      const [occurrence] = await db
+        .select()
+        .from(occurrences)
+        .where(eq(occurrences.id, input.id));
       const [so] = await db
-        .select({ id: serviceOrders.id })
+        .select()
         .from(serviceOrders)
-        .where(eq(serviceOrders.id, input.serviceOrderId))
-        .limit(1);
-
-      if (!so) {
+        .where(eq(serviceOrders.id, input.serviceOrderId));
+      if (
+        !occurrence ||
+        !so ||
+        so.isDeleted ||
+        occurrence.vehicleId !== so.vehicleId ||
+        occurrence.status === "encerrado"
+      )
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Ordem de serviço não encontrada",
+          code: "BAD_REQUEST",
+          message:
+            "OS e ocorrência devem estar abertas e pertencer ao mesmo veículo",
         });
-      }
-
+      if (so.occurrenceId && so.occurrenceId !== occurrence.id)
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "OS já vinculada a outra ocorrência",
+        });
+      await db
+        .update(serviceOrders)
+        .set({ occurrenceId: occurrence.id })
+        .where(eq(serviceOrders.id, so.id));
       await db
         .update(occurrences)
         .set({
@@ -400,7 +478,10 @@ export const occurrencesRouter = router({
         action: "UPDATE",
         entityType: "occurrence",
         entityId: input.id,
-        newData: { serviceOrderId: input.serviceOrderId, status: "em_tratamento" },
+        newData: {
+          serviceOrderId: input.serviceOrderId,
+          status: "em_tratamento",
+        },
         ...getRequestInfo(ctx.req),
       });
 
@@ -424,7 +505,11 @@ export const occurrencesRouter = router({
 
       const buffer = Buffer.from(input.fileData, "base64");
       const key = `occurrences/${input.occurrenceId}/${Date.now()}-${input.fileName}`;
-      const uploadResult = await storagePut(key, buffer, input.fileType ?? "application/octet-stream");
+      const uploadResult = await storagePut(
+        key,
+        buffer,
+        input.fileType ?? "application/octet-stream"
+      );
 
       const result = await db.insert(occurrenceAttachments).values({
         occurrenceId: input.occurrenceId,
@@ -539,12 +624,22 @@ export const occurrencesRouter = router({
       .where(eq(occurrences.isDeleted, false));
 
     const total = allOccurrences.length;
-    const abertos = allOccurrences.filter((o) => o.status === "aberto").length;
-    const emTratamento = allOccurrences.filter((o) => o.status === "em_tratamento").length;
-    const encerrados = allOccurrences.filter((o) => o.status === "encerrado").length;
-    const alta = allOccurrences.filter((o) => o.severity === "alta" && o.status !== "encerrado").length;
-    const media = allOccurrences.filter((o) => o.severity === "media" && o.status !== "encerrado").length;
-    const baixa = allOccurrences.filter((o) => o.severity === "baixa" && o.status !== "encerrado").length;
+    const abertos = allOccurrences.filter(o => o.status === "aberto").length;
+    const emTratamento = allOccurrences.filter(
+      o => o.status === "em_tratamento"
+    ).length;
+    const encerrados = allOccurrences.filter(
+      o => o.status === "encerrado"
+    ).length;
+    const alta = allOccurrences.filter(
+      o => o.severity === "alta" && o.status !== "encerrado"
+    ).length;
+    const media = allOccurrences.filter(
+      o => o.severity === "media" && o.status !== "encerrado"
+    ).length;
+    const baixa = allOccurrences.filter(
+      o => o.severity === "baixa" && o.status !== "encerrado"
+    ).length;
 
     return {
       total,

@@ -39,6 +39,9 @@ function createGestorContext(): TrpcContext {
     name: "Gestor Frota",
     loginMethod: "manus",
     role: "admin",
+    active: true,
+    unitId: null,
+    phone: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     lastSignedIn: new Date(),
@@ -62,7 +65,8 @@ describe("vehicleAI.extractFromDocument", () => {
     const caller = appRouter.createCaller(ctx);
 
     const result = await caller.vehicleAI.extractFromDocument({
-      imageBase64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+      imageBase64:
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
       mimeType: "image/png",
     });
 
@@ -95,7 +99,8 @@ describe("vehicleAI.extractFromDocument", () => {
     const caller = appRouter.createCaller(ctx);
 
     const result = await caller.vehicleAI.extractFromDocument({
-      imageBase64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+      imageBase64:
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
       mimeType: "image/png",
     });
 
@@ -110,21 +115,24 @@ describe("vehicleAI.extractFromDocument", () => {
       choices: [
         {
           message: {
-            content: "```json\n" + JSON.stringify({
-              plate: "XYZ9A87",
-              brand: "Fiat",
-              model: "Strada",
-              year: 2022,
-              yearModel: 2022,
-              color: "Prata",
-              chassi: null,
-              renavam: null,
-              vehicleType: "caminhonete",
-              fuel: "Flex",
-              engineCapacity: "1.3",
-              ownerName: null,
-              ownerCpfCnpj: null,
-            }) + "\n```",
+            content:
+              "```json\n" +
+              JSON.stringify({
+                plate: "XYZ9A87",
+                brand: "Fiat",
+                model: "Strada",
+                year: 2022,
+                yearModel: 2022,
+                color: "Prata",
+                chassi: null,
+                renavam: null,
+                vehicleType: "caminhonete",
+                fuel: "Flex",
+                engineCapacity: "1.3",
+                ownerName: null,
+                ownerCpfCnpj: null,
+              }) +
+              "\n```",
           },
         },
       ],
@@ -134,7 +142,8 @@ describe("vehicleAI.extractFromDocument", () => {
     const caller = appRouter.createCaller(ctx);
 
     const result = await caller.vehicleAI.extractFromDocument({
-      imageBase64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+      imageBase64:
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
       mimeType: "image/png",
     });
 

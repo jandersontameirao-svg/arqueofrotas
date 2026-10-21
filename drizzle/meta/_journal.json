@@ -64,6 +64,34 @@
       "when": 1776975218044,
       "tag": "0008_tidy_justin_hammer",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1792544706911,
+      "tag": "0009_essential_flows",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1792545639673,
+      "tag": "0010_durability_and_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1792545856632,
+      "tag": "0011_aggregate_revision",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1792546058755,
+      "tag": "0012_event_acknowledgements",
+      "breakpoints": true
     }
   ]
 }

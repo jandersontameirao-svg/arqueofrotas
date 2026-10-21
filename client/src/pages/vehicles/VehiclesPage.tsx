@@ -1,3 +1,4 @@
+import { filterRows } from "@shared/filter-rows";
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -20,7 +21,18 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Car, Plus, Eye, Edit, FileText, Wrench, Download, ChevronDown, Bot, Trash2 } from "lucide-react";
+import {
+  Car,
+  Plus,
+  Eye,
+  Edit,
+  FileText,
+  Wrench,
+  Download,
+  ChevronDown,
+  Bot,
+  Trash2,
+} from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,6 +65,7 @@ export function VehiclesPage() {
   const { user } = useUser();
   const canEdit = isGestor(user);
 
+  const [tableSearch, setTableSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [deleteVehicleId, setDeleteVehicleId] = useState<number | null>(null);
@@ -71,18 +84,36 @@ export function VehiclesPage() {
   });
 
   const { data: vehicles, isLoading } = trpc.vehicles.list.useQuery({
-    status: statusFilter !== "all" ? (statusFilter as typeof VEHICLE_STATUSES[number]) : undefined,
-    vehicleType: typeFilter !== "all" ? (typeFilter as typeof VEHICLE_TYPES[number]) : undefined,
+    status:
+      statusFilter !== "all"
+        ? (statusFilter as (typeof VEHICLE_STATUSES)[number])
+        : undefined,
+    vehicleType:
+      typeFilter !== "all"
+        ? (typeFilter as (typeof VEHICLE_TYPES)[number])
+        : undefined,
   });
 
-  const handleExportCSV = () => {
-    if (!vehicles || vehicles.length === 0) {
+  const exportRows = filterRows(vehicles ?? [], tableSearch, [
+    "plate",
+    "model",
+    "brand",
+  ]);
+
+  const handleExportCSV = async () => {
+    try {
+      await utils.reports.authorize.fetch();
+    } catch {
+      toast.error("Você não tem permissão para exportar.");
+      return;
+    }
+    if (!exportRows || exportRows.length === 0) {
       toast.error("Não há dados para exportar");
       return;
     }
 
     exportToCSV(
-      vehicles as Vehicle[],
+      exportRows as Vehicle[],
       `veiculos_${new Date().toISOString().split("T")[0]}`,
       [
         { key: "plate", label: "Placa" },
@@ -99,17 +130,31 @@ export function VehiclesPage() {
   };
 
   const handleExportPDF = async () => {
-    if (!vehicles || vehicles.length === 0) {
+    try {
+      await utils.reports.authorize.fetch();
+    } catch {
+      toast.error("Você não tem permissão para exportar.");
+      return;
+    }
+    if (!exportRows || exportRows.length === 0) {
       toast.error("Não há dados para exportar");
       return;
     }
 
     // Preparar dados com labels traduzidos
-    const dataForPDF = vehicles.map((v) => ({
+    const dataForPDF = exportRows.map(v => ({
       ...v,
-      vehicleType: LABELS.vehicleTypes[v.vehicleType as keyof typeof LABELS.vehicleTypes] ?? v.vehicleType,
-      status: LABELS.vehicleStatuses[v.status as keyof typeof LABELS.vehicleStatuses] ?? v.status,
-      currentKm: v.currentKm ? `${v.currentKm.toLocaleString("pt-BR")} km` : "-",
+      vehicleType:
+        LABELS.vehicleTypes[
+          v.vehicleType as keyof typeof LABELS.vehicleTypes
+        ] ?? v.vehicleType,
+      status:
+        LABELS.vehicleStatuses[
+          v.status as keyof typeof LABELS.vehicleStatuses
+        ] ?? v.status,
+      currentKm: v.currentKm
+        ? `${v.currentKm.toLocaleString("pt-BR")} km`
+        : "-",
       unitName: v.unitName ?? "-",
       brand: v.brand ?? "-",
     }));
@@ -129,7 +174,7 @@ export function VehiclesPage() {
         { key: "currentKm", label: "Km Atual", width: 25 },
       ],
       {
-        subtitle: `Total: ${vehicles.length} veículos`,
+        subtitle: `Total: ${exportRows.length} veículos`,
         orientation: "landscape",
       }
     );
@@ -141,18 +186,18 @@ export function VehiclesPage() {
       key: "plate",
       header: "Placa",
       sortable: true,
-      cell: (row) => (
-        <span className="font-mono font-medium">{row.plate}</span>
-      ),
+      cell: row => <span className="font-mono font-medium">{row.plate}</span>,
     },
     {
       key: "model",
       header: "Modelo",
       sortable: true,
-      cell: (row) => (
+      cell: row => (
         <div>
           <p className="font-medium">{row.model}</p>
-          {row.brand && <p className="text-xs text-muted-foreground">{row.brand}</p>}
+          {row.brand && (
+            <p className="text-xs text-muted-foreground">{row.brand}</p>
+          )}
         </div>
       ),
     },
@@ -160,27 +205,32 @@ export function VehiclesPage() {
       key: "vehicleType",
       header: "Tipo",
       sortable: true,
-      cell: (row) => LABELS.vehicleTypes[row.vehicleType as keyof typeof LABELS.vehicleTypes] ?? row.vehicleType,
+      cell: row =>
+        LABELS.vehicleTypes[
+          row.vehicleType as keyof typeof LABELS.vehicleTypes
+        ] ?? row.vehicleType,
     },
     {
       key: "status",
       header: "Status",
       sortable: true,
-      cell: (row) => (
-        <StatusBadge status={row.status as "ativo" | "manutencao" | "baixado"} />
+      cell: row => (
+        <StatusBadge
+          status={row.status as "ativo" | "manutencao" | "baixado"}
+        />
       ),
     },
     {
       key: "unitName",
       header: "Unidade",
       sortable: true,
-      cell: (row) => row.unitName ?? "-",
+      cell: row => row.unitName ?? "-",
     },
     {
       key: "currentKm",
       header: "Km Atual",
       sortable: true,
-      cell: (row) =>
+      cell: row =>
         row.currentKm ? row.currentKm.toLocaleString("pt-BR") + " km" : "-",
     },
     {
@@ -194,29 +244,29 @@ export function VehiclesPage() {
     {
       label: "Ver Detalhes",
       icon: <Eye className="h-4 w-4" />,
-      onClick: (row) => navigate(`/vehicles/${row.id}`),
+      onClick: row => navigate(`/vehicles/${row.id}`),
     },
     {
       label: "Editar",
       icon: <Edit className="h-4 w-4" />,
-      onClick: (row) => navigate(`/vehicles/${row.id}/edit`),
+      onClick: row => navigate(`/vehicles/${row.id}/edit`),
       hidden: () => !canEdit,
     },
     {
       label: "Documentos",
       icon: <FileText className="h-4 w-4" />,
-      onClick: (row) => navigate(`/vehicles/${row.id}/documents`),
+      onClick: row => navigate(`/vehicles/${row.id}/documents`),
     },
     {
       label: "Abrir OS",
       icon: <Wrench className="h-4 w-4" />,
-      onClick: (row) => navigate(`/service-orders/new?vehicleId=${row.id}`),
+      onClick: row => navigate(`/service-orders/new?vehicleId=${row.id}`),
       hidden: () => !canEdit,
     },
     {
       label: "Excluir Veículo",
       icon: <Trash2 className="h-4 w-4" />,
-      onClick: (row) => setDeleteVehicleId(row.id),
+      onClick: row => setDeleteVehicleId(row.id),
       variant: "destructive" as const,
       hidden: () => !canEdit,
     },
@@ -251,7 +301,11 @@ export function VehiclesPage() {
             </DropdownMenu>
             {canEdit && (
               <>
-                <Button variant="outline" onClick={() => navigate("/vehicles/ai-register")} className="border-primary/50 text-primary hover:bg-primary/10">
+                <Button
+                  variant="outline"
+                  onClick={() => navigate("/vehicles/ai-register")}
+                  className="border-primary/50 text-primary hover:bg-primary/10"
+                >
                   <Bot className="h-4 w-4 mr-2" />
                   Cadastrar por IA
                 </Button>
@@ -276,7 +330,7 @@ export function VehiclesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os Status</SelectItem>
-                  {VEHICLE_STATUSES.map((status) => (
+                  {VEHICLE_STATUSES.map(status => (
                     <SelectItem key={status} value={status}>
                       {LABELS.vehicleStatuses[status]}
                     </SelectItem>
@@ -291,7 +345,7 @@ export function VehiclesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os Tipos</SelectItem>
-                  {VEHICLE_TYPES.map((type) => (
+                  {VEHICLE_TYPES.map(type => (
                     <SelectItem key={type} value={type}>
                       {LABELS.vehicleTypes[type]}
                     </SelectItem>
@@ -310,26 +364,35 @@ export function VehiclesPage() {
         actions={actions}
         isLoading={isLoading}
         searchable
+        onSearchChange={setTableSearch}
         searchPlaceholder="Buscar por placa ou modelo..."
         searchKeys={["plate", "model", "brand"]}
-        onRowClick={(row) => navigate(`/vehicles/${row.id}`)}
+        onRowClick={row => navigate(`/vehicles/${row.id}`)}
         emptyMessage="Nenhum veículo encontrado"
       />
 
       {/* Delete confirmation */}
-      <AlertDialog open={deleteVehicleId !== null} onOpenChange={() => setDeleteVehicleId(null)}>
+      <AlertDialog
+        open={deleteVehicleId !== null}
+        onOpenChange={() => setDeleteVehicleId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir este veículo? O veículo será desativado e não aparecerá mais na frota ativa. Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir este veículo? O veículo será
+              desativado e não aparecerá mais na frota ativa. Esta ação não pode
+              ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => deleteVehicleId && deleteMutation.mutate({ id: deleteVehicleId })}
+              onClick={() =>
+                deleteVehicleId &&
+                deleteMutation.mutate({ id: deleteVehicleId })
+              }
             >
               Excluir Veículo
             </AlertDialogAction>

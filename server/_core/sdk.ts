@@ -272,8 +272,10 @@ class SDKServer {
 
     // If user not in DB, DO NOT sync automatically - this prevents creation of incomplete/ghost users
     // Users must be created explicitly via the /api/oauth/callback flow or admin creation
-    if (!user) {
-      console.warn(`[Auth] User ${sessionUserId} has valid session but no DB record - denying access`);
+    if (!user || !user.active) {
+      console.warn(
+        `[Auth] User ${sessionUserId} has valid session but no DB record - denying access`
+      );
       throw ForbiddenError("User not found in system");
     }
 

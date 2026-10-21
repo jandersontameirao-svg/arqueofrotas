@@ -1,0 +1,2 @@
+# Preserve raw command output in validation evidence, including logger whitespace.
+validation/*.log -whitespace

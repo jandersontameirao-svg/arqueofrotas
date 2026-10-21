@@ -2,9 +2,16 @@ import { z } from "zod";
 import { eq, desc, and } from "drizzle-orm";
 import { router, gestorProcedure, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
-import { maintenancePlans, vehicleMaintenanceStatus, vehicles } from "../../drizzle/schema";
+import {
+  maintenancePlans,
+  vehicleMaintenanceStatus,
+  vehicles,
+} from "../../drizzle/schema";
 import { createAuditLog, getRequestInfo } from "../audit";
 import { VEHICLE_TYPES } from "@shared/const";
+
+import { TRPCError } from "@trpc/server";
+import { recordKm } from "../domain/odometer";
 
 export const maintenancePlansRouter = router({
   list: protectedProcedure.query(async () => {
@@ -79,8 +86,8 @@ export const maintenancePlansRouter = router({
         description: z.string().optional(),
         vehicleType: z.enum(VEHICLE_TYPES).nullable().optional(),
         vehicleId: z.number().nullable().optional(),
-        intervalKm: z.number().min(1).optional(),
-        intervalDays: z.number().min(1).optional(),
+        intervalKm: z.number().int().min(1).optional(),
+        intervalDays: z.number().int().min(1).optional(),
         active: z.boolean().default(true),
       })
     )
@@ -90,7 +97,9 @@ export const maintenancePlansRouter = router({
 
       // At least one interval must be provided
       if (!input.intervalKm && !input.intervalDays) {
-        throw new Error("Pelo menos um intervalo (km ou dias) deve ser informado");
+        throw new Error(
+          "Pelo menos um intervalo (km ou dias) deve ser informado"
+        );
       }
 
       const result = await db.insert(maintenancePlans).values(input);
@@ -116,8 +125,8 @@ export const maintenancePlansRouter = router({
         description: z.string().optional(),
         vehicleType: z.enum(VEHICLE_TYPES).nullable().optional(),
         vehicleId: z.number().nullable().optional(),
-        intervalKm: z.number().min(1).nullable().optional(),
-        intervalDays: z.number().min(1).nullable().optional(),
+        intervalKm: z.number().int().min(1).nullable().optional(),
+        intervalDays: z.number().int().min(1).nullable().optional(),
         active: z.boolean().optional(),
       })
     )
@@ -134,7 +143,21 @@ export const maintenancePlansRouter = router({
         .where(eq(maintenancePlans.id, id))
         .limit(1);
 
-      await db.update(maintenancePlans).set(updateData).where(eq(maintenancePlans.id, id));
+      if (!previous)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Plano não encontrado",
+        });
+      const merged = { ...previous, ...updateData };
+      if (!merged.intervalKm && !merged.intervalDays)
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Defina ao menos um intervalo",
+        });
+      await db
+        .update(maintenancePlans)
+        .set(updateData)
+        .where(eq(maintenancePlans.id, id));
 
       await createAuditLog({
         user: ctx.user,
@@ -200,7 +223,10 @@ export const maintenancePlansRouter = router({
           status: vehicleMaintenanceStatus.status,
         })
         .from(vehicleMaintenanceStatus)
-        .innerJoin(maintenancePlans, eq(vehicleMaintenanceStatus.maintenancePlanId, maintenancePlans.id))
+        .innerJoin(
+          maintenancePlans,
+          eq(vehicleMaintenanceStatus.maintenancePlanId, maintenancePlans.id)
+        )
         .where(eq(vehicleMaintenanceStatus.vehicleId, input.vehicleId));
 
       return result;
@@ -225,18 +251,28 @@ export const maintenancePlansRouter = router({
         status: vehicleMaintenanceStatus.status,
       })
       .from(vehicleMaintenanceStatus)
-      .innerJoin(maintenancePlans, eq(vehicleMaintenanceStatus.maintenancePlanId, maintenancePlans.id))
-      .innerJoin(vehicles, eq(vehicleMaintenanceStatus.vehicleId, vehicles.id))
-      .where(
-        and(
-          eq(vehicles.active, true),
-          eq(maintenancePlans.active, true)
-        )
+      .innerJoin(
+        maintenancePlans,
+        eq(vehicleMaintenanceStatus.maintenancePlanId, maintenancePlans.id)
       )
-      .orderBy(vehicleMaintenanceStatus.status, vehicleMaintenanceStatus.nextDueDate);
+      .innerJoin(vehicles, eq(vehicleMaintenanceStatus.vehicleId, vehicles.id))
+      .where(and(eq(vehicles.active, true), eq(maintenancePlans.active, true)))
+      .orderBy(
+        vehicleMaintenanceStatus.status,
+        vehicleMaintenanceStatus.nextDueDate
+      );
 
     // Filter to show only a_vencer and vencida
-    return result.filter((r) => r.status !== "em_dia");
+    return result
+      .map(r => ({
+        ...r,
+        status:
+          (r.nextDueDate && r.nextDueDate <= new Date()) ||
+          (r.nextDueKm !== null && r.currentKm >= r.nextDueKm)
+            ? "vencida"
+            : r.status,
+      }))
+      .filter(r => r.status !== "em_dia");
   }),
 
   // Update maintenance status after service order completion
@@ -246,7 +282,7 @@ export const maintenancePlansRouter = router({
         vehicleId: z.number(),
         maintenancePlanId: z.number(),
         executedAt: z.date(),
-        executedKm: z.number(),
+        executedKm: z.number().int().min(0),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -264,6 +300,33 @@ export const maintenancePlansRouter = router({
         throw new Error("Plano de manutenção não encontrado");
       }
 
+      const [vehicle] = await db
+        .select()
+        .from(vehicles)
+        .where(eq(vehicles.id, input.vehicleId));
+      if (
+        !vehicle ||
+        !plan.active ||
+        (plan.vehicleId && plan.vehicleId !== vehicle.id) ||
+        (plan.vehicleType && plan.vehicleType !== vehicle.vehicleType)
+      )
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Plano não aplicável ao veículo",
+        });
+      if (input.executedAt.getTime() > Date.now() + 300000)
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Execução no futuro",
+        });
+      await recordKm(
+        db,
+        ctx.user,
+        vehicle.id,
+        input.executedKm,
+        "maintenance",
+        input.executedAt
+      );
       // Calculate next due date and km
       let nextDueDate: Date | null = null;
       let nextDueKm: number | null = null;
@@ -284,11 +347,22 @@ export const maintenancePlansRouter = router({
         .where(
           and(
             eq(vehicleMaintenanceStatus.vehicleId, input.vehicleId),
-            eq(vehicleMaintenanceStatus.maintenancePlanId, input.maintenancePlanId)
+            eq(
+              vehicleMaintenanceStatus.maintenancePlanId,
+              input.maintenancePlanId
+            )
           )
         )
         .limit(1);
 
+      if (
+        existing?.lastExecutedAt &&
+        input.executedAt < existing.lastExecutedAt
+      )
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Execução anterior à última manutenção registrada",
+        });
       if (existing) {
         await db
           .update(vehicleMaintenanceStatus)

@@ -134,3 +134,4 @@ purge-users.mjs
 push-db.py
 push-db.sh
 restore_and_verify.mjs
+.project-config.json

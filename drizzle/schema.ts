@@ -9,6 +9,8 @@ import {
   timestamp,
   varchar,
   decimal,
+  longtext,
+  uniqueIndex,
 } from "drizzle-orm/mysql-core";
 
 // ============================================
@@ -183,11 +185,14 @@ export const vehicles = mysqlTable("vehicles", {
   unitId: int("unitId"),
   defaultProjectId: int("defaultProjectId"),
   currentResponsibleId: int("currentResponsibleId"),
+  revision: int("revision").default(0).notNull(),
   currentKm: int("currentKm").default(0).notNull(),
   chassi: varchar("chassi", { length: 50 }),
   renavam: varchar("renavam", { length: 20 }),
   trackingDeviceId: varchar("trackingDeviceId", { length: 100 }), // Para integração futura com telemetria
-  registrationOrigin: mysqlEnum("registrationOrigin", ["manual", "ia"]).default("manual"),
+  registrationOrigin: mysqlEnum("registrationOrigin", ["manual", "ia"]).default(
+    "manual"
+  ),
   observations: text("observations"),
   active: boolean("active").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -254,7 +259,8 @@ export const checklistTemplateItems = mysqlTable("checklistTemplateItems", {
 });
 
 export type ChecklistTemplateItem = typeof checklistTemplateItems.$inferSelect;
-export type InsertChecklistTemplateItem = typeof checklistTemplateItems.$inferInsert;
+export type InsertChecklistTemplateItem =
+  typeof checklistTemplateItems.$inferInsert;
 
 // ============================================
 // RESERVATIONS TABLE (Reservas/Alocações)
@@ -273,11 +279,14 @@ export const reservations = mysqlTable("reservations", {
   // Check-in data
   checkInAt: timestamp("checkInAt"),
   checkInKm: int("checkInKm"),
+  checkInFuel: int("checkInFuel"),
+  returnChecklistId: int("returnChecklistId"),
   checkInCondition: text("checkInCondition"),
   checkInPhotoUrl: text("checkInPhotoUrl"),
   // Check-out data
   checkOutAt: timestamp("checkOutAt"),
   checkOutKm: int("checkOutKm"),
+  checkOutFuel: int("checkOutFuel"),
   checkOutCondition: text("checkOutCondition"),
   checkOutPhotoUrl: text("checkOutPhotoUrl"),
   // Checklist reference
@@ -378,7 +387,8 @@ export const occurrenceAttachments = mysqlTable("occurrenceAttachments", {
 });
 
 export type OccurrenceAttachment = typeof occurrenceAttachments.$inferSelect;
-export type InsertOccurrenceAttachment = typeof occurrenceAttachments.$inferInsert;
+export type InsertOccurrenceAttachment =
+  typeof occurrenceAttachments.$inferInsert;
 
 // ============================================
 // OCCURRENCE COMMENTS TABLE (Comentários de Ocorrência)
@@ -427,13 +437,17 @@ export const vehicleMaintenanceStatus = mysqlTable("vehicleMaintenanceStatus", {
   lastExecutedKm: int("lastExecutedKm"),
   nextDueDate: timestamp("nextDueDate"),
   nextDueKm: int("nextDueKm"),
-  status: mysqlEnum("status", ["em_dia", "a_vencer", "vencida"]).default("em_dia").notNull(),
+  status: mysqlEnum("status", ["em_dia", "a_vencer", "vencida"])
+    .default("em_dia")
+    .notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
-export type VehicleMaintenanceStatus = typeof vehicleMaintenanceStatus.$inferSelect;
-export type InsertVehicleMaintenanceStatus = typeof vehicleMaintenanceStatus.$inferInsert;
+export type VehicleMaintenanceStatus =
+  typeof vehicleMaintenanceStatus.$inferSelect;
+export type InsertVehicleMaintenanceStatus =
+  typeof vehicleMaintenanceStatus.$inferInsert;
 
 // ============================================
 // SERVICE ORDERS TABLE (Ordens de Serviço)
@@ -513,8 +527,10 @@ export const serviceOrderAttachments = mysqlTable("serviceOrderAttachments", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
-export type ServiceOrderAttachment = typeof serviceOrderAttachments.$inferSelect;
-export type InsertServiceOrderAttachment = typeof serviceOrderAttachments.$inferInsert;
+export type ServiceOrderAttachment =
+  typeof serviceOrderAttachments.$inferSelect;
+export type InsertServiceOrderAttachment =
+  typeof serviceOrderAttachments.$inferInsert;
 
 // ============================================
 // AUDIT LOGS TABLE (Logs de Auditoria)
@@ -586,24 +602,33 @@ export const vehiclesRelations = relations(vehicles, ({ one, many }) => ({
   maintenanceStatuses: many(vehicleMaintenanceStatus),
 }));
 
-export const vehicleDocumentsRelations = relations(vehicleDocuments, ({ one }) => ({
-  vehicle: one(vehicles, {
-    fields: [vehicleDocuments.vehicleId],
-    references: [vehicles.id],
-  }),
-}));
+export const vehicleDocumentsRelations = relations(
+  vehicleDocuments,
+  ({ one }) => ({
+    vehicle: one(vehicles, {
+      fields: [vehicleDocuments.vehicleId],
+      references: [vehicles.id],
+    }),
+  })
+);
 
-export const checklistTemplatesRelations = relations(checklistTemplates, ({ many }) => ({
-  items: many(checklistTemplateItems),
-  checklists: many(checklists),
-}));
+export const checklistTemplatesRelations = relations(
+  checklistTemplates,
+  ({ many }) => ({
+    items: many(checklistTemplateItems),
+    checklists: many(checklists),
+  })
+);
 
-export const checklistTemplateItemsRelations = relations(checklistTemplateItems, ({ one }) => ({
-  template: one(checklistTemplates, {
-    fields: [checklistTemplateItems.templateId],
-    references: [checklistTemplates.id],
-  }),
-}));
+export const checklistTemplateItemsRelations = relations(
+  checklistTemplateItems,
+  ({ one }) => ({
+    template: one(checklistTemplates, {
+      fields: [checklistTemplateItems.templateId],
+      references: [checklistTemplates.id],
+    }),
+  })
+);
 
 export const reservationsRelations = relations(reservations, ({ one }) => ({
   vehicle: one(vehicles, {
@@ -640,20 +665,23 @@ export const checklistsRelations = relations(checklists, ({ one, many }) => ({
   responses: many(checklistResponses),
 }));
 
-export const checklistResponsesRelations = relations(checklistResponses, ({ one }) => ({
-  checklist: one(checklists, {
-    fields: [checklistResponses.checklistId],
-    references: [checklists.id],
-  }),
-  templateItem: one(checklistTemplateItems, {
-    fields: [checklistResponses.templateItemId],
-    references: [checklistTemplateItems.id],
-  }),
-  occurrence: one(occurrences, {
-    fields: [checklistResponses.occurrenceId],
-    references: [occurrences.id],
-  }),
-}));
+export const checklistResponsesRelations = relations(
+  checklistResponses,
+  ({ one }) => ({
+    checklist: one(checklists, {
+      fields: [checklistResponses.checklistId],
+      references: [checklists.id],
+    }),
+    templateItem: one(checklistTemplateItems, {
+      fields: [checklistResponses.templateItemId],
+      references: [checklistTemplateItems.id],
+    }),
+    occurrence: one(occurrences, {
+      fields: [checklistResponses.occurrenceId],
+      references: [occurrences.id],
+    }),
+  })
+);
 
 export const occurrencesRelations = relations(occurrences, ({ one, many }) => ({
   vehicle: one(vehicles, {
@@ -676,95 +704,115 @@ export const occurrencesRelations = relations(occurrences, ({ one, many }) => ({
   comments: many(occurrenceComments),
 }));
 
-export const occurrenceAttachmentsRelations = relations(occurrenceAttachments, ({ one }) => ({
-  occurrence: one(occurrences, {
-    fields: [occurrenceAttachments.occurrenceId],
-    references: [occurrences.id],
-  }),
-  uploadedBy: one(users, {
-    fields: [occurrenceAttachments.uploadedById],
-    references: [users.id],
-  }),
-}));
+export const occurrenceAttachmentsRelations = relations(
+  occurrenceAttachments,
+  ({ one }) => ({
+    occurrence: one(occurrences, {
+      fields: [occurrenceAttachments.occurrenceId],
+      references: [occurrences.id],
+    }),
+    uploadedBy: one(users, {
+      fields: [occurrenceAttachments.uploadedById],
+      references: [users.id],
+    }),
+  })
+);
 
-export const occurrenceCommentsRelations = relations(occurrenceComments, ({ one }) => ({
-  occurrence: one(occurrences, {
-    fields: [occurrenceComments.occurrenceId],
-    references: [occurrences.id],
-  }),
-  user: one(users, {
-    fields: [occurrenceComments.userId],
-    references: [users.id],
-  }),
-}));
+export const occurrenceCommentsRelations = relations(
+  occurrenceComments,
+  ({ one }) => ({
+    occurrence: one(occurrences, {
+      fields: [occurrenceComments.occurrenceId],
+      references: [occurrences.id],
+    }),
+    user: one(users, {
+      fields: [occurrenceComments.userId],
+      references: [users.id],
+    }),
+  })
+);
 
-export const maintenancePlansRelations = relations(maintenancePlans, ({ one, many }) => ({
-  vehicle: one(vehicles, {
-    fields: [maintenancePlans.vehicleId],
-    references: [vehicles.id],
-  }),
-  vehicleStatuses: many(vehicleMaintenanceStatus),
-  serviceOrders: many(serviceOrders),
-}));
+export const maintenancePlansRelations = relations(
+  maintenancePlans,
+  ({ one, many }) => ({
+    vehicle: one(vehicles, {
+      fields: [maintenancePlans.vehicleId],
+      references: [vehicles.id],
+    }),
+    vehicleStatuses: many(vehicleMaintenanceStatus),
+    serviceOrders: many(serviceOrders),
+  })
+);
 
-export const vehicleMaintenanceStatusRelations = relations(vehicleMaintenanceStatus, ({ one }) => ({
-  vehicle: one(vehicles, {
-    fields: [vehicleMaintenanceStatus.vehicleId],
-    references: [vehicles.id],
-  }),
-  maintenancePlan: one(maintenancePlans, {
-    fields: [vehicleMaintenanceStatus.maintenancePlanId],
-    references: [maintenancePlans.id],
-  }),
-}));
+export const vehicleMaintenanceStatusRelations = relations(
+  vehicleMaintenanceStatus,
+  ({ one }) => ({
+    vehicle: one(vehicles, {
+      fields: [vehicleMaintenanceStatus.vehicleId],
+      references: [vehicles.id],
+    }),
+    maintenancePlan: one(maintenancePlans, {
+      fields: [vehicleMaintenanceStatus.maintenancePlanId],
+      references: [maintenancePlans.id],
+    }),
+  })
+);
 
-export const serviceOrdersRelations = relations(serviceOrders, ({ one, many }) => ({
-  vehicle: one(vehicles, {
-    fields: [serviceOrders.vehicleId],
-    references: [vehicles.id],
-  }),
-  maintenancePlan: one(maintenancePlans, {
-    fields: [serviceOrders.maintenancePlanId],
-    references: [maintenancePlans.id],
-  }),
-  occurrence: one(occurrences, {
-    fields: [serviceOrders.occurrenceId],
-    references: [occurrences.id],
-  }),
-  openedBy: one(users, {
-    fields: [serviceOrders.openedById],
-    references: [users.id],
-  }),
-  assignedTo: one(users, {
-    fields: [serviceOrders.assignedToId],
-    references: [users.id],
-  }),
-  completedBy: one(users, {
-    fields: [serviceOrders.completedById],
-    references: [users.id],
-  }),
-  items: many(serviceOrderItems),
-  attachments: many(serviceOrderAttachments),
-}));
+export const serviceOrdersRelations = relations(
+  serviceOrders,
+  ({ one, many }) => ({
+    vehicle: one(vehicles, {
+      fields: [serviceOrders.vehicleId],
+      references: [vehicles.id],
+    }),
+    maintenancePlan: one(maintenancePlans, {
+      fields: [serviceOrders.maintenancePlanId],
+      references: [maintenancePlans.id],
+    }),
+    occurrence: one(occurrences, {
+      fields: [serviceOrders.occurrenceId],
+      references: [occurrences.id],
+    }),
+    openedBy: one(users, {
+      fields: [serviceOrders.openedById],
+      references: [users.id],
+    }),
+    assignedTo: one(users, {
+      fields: [serviceOrders.assignedToId],
+      references: [users.id],
+    }),
+    completedBy: one(users, {
+      fields: [serviceOrders.completedById],
+      references: [users.id],
+    }),
+    items: many(serviceOrderItems),
+    attachments: many(serviceOrderAttachments),
+  })
+);
 
-export const serviceOrderItemsRelations = relations(serviceOrderItems, ({ one }) => ({
-  serviceOrder: one(serviceOrders, {
-    fields: [serviceOrderItems.serviceOrderId],
-    references: [serviceOrders.id],
-  }),
-}));
+export const serviceOrderItemsRelations = relations(
+  serviceOrderItems,
+  ({ one }) => ({
+    serviceOrder: one(serviceOrders, {
+      fields: [serviceOrderItems.serviceOrderId],
+      references: [serviceOrders.id],
+    }),
+  })
+);
 
-export const serviceOrderAttachmentsRelations = relations(serviceOrderAttachments, ({ one }) => ({
-  serviceOrder: one(serviceOrders, {
-    fields: [serviceOrderAttachments.serviceOrderId],
-    references: [serviceOrders.id],
-  }),
-  uploadedBy: one(users, {
-    fields: [serviceOrderAttachments.uploadedById],
-    references: [users.id],
-  }),
-}));
-
+export const serviceOrderAttachmentsRelations = relations(
+  serviceOrderAttachments,
+  ({ one }) => ({
+    serviceOrder: one(serviceOrders, {
+      fields: [serviceOrderAttachments.serviceOrderId],
+      references: [serviceOrders.id],
+    }),
+    uploadedBy: one(users, {
+      fields: [serviceOrderAttachments.uploadedById],
+      references: [users.id],
+    }),
+  })
+);
 
 // ============================================
 // VEHICLE PHOTOS TABLE (Fotos do Status do Veículo)
@@ -800,7 +848,6 @@ export const vehiclePhotosRelations = relations(vehiclePhotos, ({ one }) => ({
     references: [users.id],
   }),
 }));
-
 
 // ============================================
 // SERVICE PROVIDERS TABLE (Prestadores de Serviço)
@@ -840,18 +887,22 @@ export const serviceOrderApprovals = mysqlTable("serviceOrderApprovals", {
 });
 
 export type ServiceOrderApproval = typeof serviceOrderApprovals.$inferSelect;
-export type InsertServiceOrderApproval = typeof serviceOrderApprovals.$inferInsert;
+export type InsertServiceOrderApproval =
+  typeof serviceOrderApprovals.$inferInsert;
 
-export const serviceOrderApprovalsRelations = relations(serviceOrderApprovals, ({ one }) => ({
-  serviceOrder: one(serviceOrders, {
-    fields: [serviceOrderApprovals.serviceOrderId],
-    references: [serviceOrders.id],
-  }),
-  user: one(users, {
-    fields: [serviceOrderApprovals.userId],
-    references: [users.id],
-  }),
-}));
+export const serviceOrderApprovalsRelations = relations(
+  serviceOrderApprovals,
+  ({ one }) => ({
+    serviceOrder: one(serviceOrders, {
+      fields: [serviceOrderApprovals.serviceOrderId],
+      references: [serviceOrders.id],
+    }),
+    user: one(users, {
+      fields: [serviceOrderApprovals.userId],
+      references: [users.id],
+    }),
+  })
+);
 
 // ============================================
 // VEHICLE FINES TABLE (Multas de Veículos)
@@ -923,9 +974,100 @@ export const appNotifications = mysqlTable("appNotifications", {
 export type AppNotification = typeof appNotifications.$inferSelect;
 export type InsertAppNotification = typeof appNotifications.$inferInsert;
 
-export const appNotificationsRelations = relations(appNotifications, ({ one }) => ({
-  user: one(users, {
-    fields: [appNotifications.userId],
-    references: [users.id],
-  }),
-}));
+export const appNotificationsRelations = relations(
+  appNotifications,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [appNotifications.userId],
+      references: [users.id],
+    }),
+  })
+);
+
+// Additive operational records. No existing files or readings are rewritten.
+export const operationReceipts = mysqlTable("operationReceipts", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  userId: int("userId").notNull(),
+  operation: varchar("operation", { length: 100 }).notNull(),
+  requestId: varchar("requestId", { length: 100 }).notNull(),
+  inputHash: varchar("inputHash", { length: 64 }).notNull(),
+  result: json("result").notNull(),
+  receivedAt: timestamp("receivedAt").defaultNow().notNull(),
+});
+export const evidenceFiles = mysqlTable("evidenceFiles", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  userId: int("userId").notNull(),
+  vehicleId: int("vehicleId").notNull(),
+  fileName: varchar("fileName", { length: 255 }).notNull(),
+  mimeType: varchar("mimeType", { length: 50 }).notNull(),
+  content: longtext("content").notNull(),
+  sha256: varchar("sha256", { length: 64 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export const odometerReadings = mysqlTable("odometerReadings", {
+  id: int("id").autoincrement().primaryKey(),
+  vehicleId: int("vehicleId").notNull(),
+  userId: int("userId").notNull(),
+  source: varchar("source", { length: 50 }).notNull(),
+  originalKm: int("originalKm").notNull(),
+  previousKm: int("previousKm").notNull(),
+  correctedKm: int("correctedKm"),
+  reason: text("reason"),
+  collectedAt: timestamp("collectedAt").notNull(),
+  receivedAt: timestamp("receivedAt").defaultNow().notNull(),
+});
+export const vehicleHolds = mysqlTable("vehicleHolds", {
+  id: int("id").autoincrement().primaryKey(),
+  vehicleId: int("vehicleId").notNull(),
+  reason: text("reason").notNull(),
+  userId: int("userId"),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  releasedAt: timestamp("releasedAt"),
+  releasedById: int("releasedById"),
+});
+export const activeVehicleUses = mysqlTable("activeVehicleUses", {
+  vehicleId: int("vehicleId").primaryKey(),
+  userId: int("userId").notNull().unique(),
+  reservationId: int("reservationId").notNull().unique(),
+});
+export const domainEvents = mysqlTable("domainEvents", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  userId: int("userId").notNull(),
+  requestId: varchar("requestId", { length: 100 }).notNull(),
+  operation: varchar("operation", { length: 100 }).notNull(),
+  resourceId: int("resourceId"),
+  payload: json("payload").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export const integrationReferences = mysqlTable(
+  "integrationReferences",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    system: varchar("system", { length: 100 }).notNull(),
+    entityType: varchar("entityType", { length: 50 }).notNull(),
+    localId: varchar("localId", { length: 100 }).notNull(),
+    externalId: varchar("externalId", { length: 255 }).notNull(),
+    version: varchar("version", { length: 100 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("integration_local_ref").on(
+      table.system,
+      table.entityType,
+      table.localId
+    ),
+    uniqueIndex("integration_external_ref").on(
+      table.system,
+      table.entityType,
+      table.externalId
+    ),
+  ]
+);
+export const eventAcknowledgements = mysqlTable("eventAcknowledgements", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  userId: int("userId").notNull(),
+  consumer: varchar("consumer", { length: 100 }).notNull(),
+  eventId: varchar("eventId", { length: 64 }).notNull(),
+  acknowledgedAt: timestamp("acknowledgedAt").defaultNow().notNull(),
+});

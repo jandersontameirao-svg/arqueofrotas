@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { eq, desc, and, ne } from "drizzle-orm";
-import { router, adminProcedure, protectedProcedure } from "../_core/trpc";
+import {
+  router,
+  adminProcedure,
+  protectedProcedure,
+  gestorProcedure,
+} from "../_core/trpc";
 import { getDb } from "../db";
 import { users, units } from "../../drizzle/schema";
 import { createAuditLog, getRequestInfo } from "../audit";
@@ -49,7 +54,9 @@ export const usersRouter = router({
       if (!db) throw new Error("Database not available");
 
       // Generate a unique openId if not provided
-      const openId = input.openId || `manual-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const openId =
+        input.openId ||
+        `manual-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
       // Check if email already exists
       if (input.email) {
@@ -79,14 +86,18 @@ export const usersRouter = router({
         action: "CREATE",
         entityType: "user",
         entityId: insertId,
-        newData: { name: input.name, email: input.email, role: input.role } as Record<string, unknown>,
+        newData: {
+          name: input.name,
+          email: input.email,
+          role: input.role,
+        } as Record<string, unknown>,
         ...getRequestInfo(ctx.req),
       });
 
       return { id: insertId };
     }),
 
-  listActive: protectedProcedure.query(async ({ ctx }) => {
+  listActive: gestorProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) throw new Error("Database not available");
 
@@ -104,7 +115,7 @@ export const usersRouter = router({
     return result;
   }),
 
-  listByRole: protectedProcedure
+  listByRole: gestorProcedure
     .input(z.object({ role: z.enum(USER_ROLES) }))
     .query(async ({ input }) => {
       const db = await getDb();

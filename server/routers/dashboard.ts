@@ -26,12 +26,17 @@ export const dashboardRouter = router({
 
     const vehicleStats = {
       total: allVehicles.length,
-      ativos: allVehicles.filter((v) => v.status === "ativo").length,
-      emManutencao: allVehicles.filter((v) => v.status === "manutencao").length,
-      baixados: allVehicles.filter((v) => v.status === "baixado").length,
-      disponibilidade: allVehicles.length > 0
-        ? Math.round((allVehicles.filter((v) => v.status === "ativo").length / allVehicles.length) * 100)
-        : 0,
+      ativos: allVehicles.filter(v => v.status === "ativo").length,
+      emManutencao: allVehicles.filter(v => v.status === "manutencao").length,
+      baixados: allVehicles.filter(v => v.status === "baixado").length,
+      disponibilidade:
+        allVehicles.length > 0
+          ? Math.round(
+              (allVehicles.filter(v => v.status === "ativo").length /
+                allVehicles.length) *
+                100
+            )
+          : 0,
     };
 
     // Today's checklist stats
@@ -52,10 +57,16 @@ export const dashboardRouter = router({
 
     const checklistStats = {
       hoje: todayChecklists.length,
-      comProblemas: todayChecklists.filter((c) => c.hasIssues).length,
-      conformidade: todayChecklists.length > 0
-        ? Math.round(((todayChecklists.length - todayChecklists.filter((c) => c.hasIssues).length) / todayChecklists.length) * 100)
-        : 100,
+      comProblemas: todayChecklists.filter(c => c.hasIssues).length,
+      conformidade:
+        todayChecklists.length > 0
+          ? Math.round(
+              ((todayChecklists.length -
+                todayChecklists.filter(c => c.hasIssues).length) /
+                todayChecklists.length) *
+                100
+            )
+          : 100,
     };
 
     // Open occurrences
@@ -66,9 +77,9 @@ export const dashboardRouter = router({
 
     const occurrenceStats = {
       abertas: openOccurrences.length,
-      alta: openOccurrences.filter((o) => o.severity === "alta").length,
-      media: openOccurrences.filter((o) => o.severity === "media").length,
-      baixa: openOccurrences.filter((o) => o.severity === "baixa").length,
+      alta: openOccurrences.filter(o => o.severity === "alta").length,
+      media: openOccurrences.filter(o => o.severity === "media").length,
+      baixa: openOccurrences.filter(o => o.severity === "baixa").length,
     };
 
     // Open service orders
@@ -83,9 +94,10 @@ export const dashboardRouter = router({
       );
 
     const serviceOrderStats = {
-      abertas: openSOs.filter((so) => so.status === "aberta").length,
-      emAndamento: openSOs.filter((so) => so.status === "em_andamento").length,
-      aguardandoPecas: openSOs.filter((so) => so.status === "aguardando_pecas").length,
+      abertas: openSOs.filter(so => so.status === "aberta").length,
+      emAndamento: openSOs.filter(so => so.status === "em_andamento").length,
+      aguardandoPecas: openSOs.filter(so => so.status === "aguardando_pecas")
+        .length,
       total: openSOs.length,
     };
 
@@ -105,8 +117,12 @@ export const dashboardRouter = router({
       );
 
     const documentStats = {
-      vencidos: expiringDocs.filter((d) => d.expirationDate && d.expirationDate <= today).length,
-      aVencer: expiringDocs.filter((d) => d.expirationDate && d.expirationDate > today).length,
+      vencidos: expiringDocs.filter(
+        d => d.expirationDate && d.expirationDate <= today
+      ).length,
+      aVencer: expiringDocs.filter(
+        d => d.expirationDate && d.expirationDate > today
+      ).length,
     };
 
     // Maintenance alerts
@@ -116,8 +132,8 @@ export const dashboardRouter = router({
       .where(ne(vehicleMaintenanceStatus.status, "em_dia"));
 
     const maintenanceStats = {
-      aVencer: maintenanceAlerts.filter((m) => m.status === "a_vencer").length,
-      vencidas: maintenanceAlerts.filter((m) => m.status === "vencida").length,
+      aVencer: maintenanceAlerts.filter(m => m.status === "a_vencer").length,
+      vencidas: maintenanceAlerts.filter(m => m.status === "vencida").length,
     };
 
     return {
@@ -182,7 +198,7 @@ export const dashboardRouter = router({
 
     return {
       reservasAtivas: myReservations.length,
-      reservasEmUso: myReservations.filter((r) => r.status === "em_uso").length,
+      reservasEmUso: myReservations.filter(r => r.status === "em_uso").length,
       checklistsHoje: todayChecklists.length,
       ocorrenciasAbertas: myOccurrences.length,
     };
@@ -190,7 +206,9 @@ export const dashboardRouter = router({
 
   // Recent activity
   getRecentActivity: gestorProcedure
-    .input(z.object({ limit: z.number().min(1).max(50).default(10) }).optional())
+    .input(
+      z.object({ limit: z.number().min(1).max(50).default(10) }).optional()
+    )
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
@@ -203,7 +221,9 @@ export const dashboardRouter = router({
           id: checklists.id,
           type: sql<string>`'checklist'`.as("type"),
           vehiclePlate: vehicles.plate,
-          description: sql<string>`CONCAT('Checklist executado')`.as("description"),
+          description: sql<string>`CONCAT('Checklist executado')`.as(
+            "description"
+          ),
           createdAt: checklists.createdAt,
         })
         .from(checklists)
@@ -241,11 +261,14 @@ export const dashboardRouter = router({
 
       // Combine and sort
       const allActivity = [
-        ...recentChecklists.map((c) => ({ ...c, type: "checklist" as const })),
-        ...recentOccurrences.map((o) => ({ ...o, type: "occurrence" as const })),
-        ...recentSOs.map((so) => ({ ...so, type: "service_order" as const })),
+        ...recentChecklists.map(c => ({ ...c, type: "checklist" as const })),
+        ...recentOccurrences.map(o => ({ ...o, type: "occurrence" as const })),
+        ...recentSOs.map(so => ({ ...so, type: "service_order" as const })),
       ]
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )
         .slice(0, limit);
 
       return allActivity;
@@ -259,7 +282,7 @@ export const dashboardRouter = router({
         limit: z.number().min(1).max(100).default(50),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
@@ -269,11 +292,21 @@ export const dashboardRouter = router({
           id: reservations.id,
           type: sql<string>`'reservation'`.as("type"),
           date: reservations.startDate,
-          description: sql<string>`CONCAT('Reserva: ', reservations.purpose)`.as("description"),
+          description:
+            sql<string>`CONCAT('Reserva: ', reservations.purpose)`.as(
+              "description"
+            ),
           status: reservations.status,
         })
         .from(reservations)
-        .where(eq(reservations.vehicleId, input.vehicleId))
+        .where(
+          and(
+            eq(reservations.vehicleId, input.vehicleId),
+            ctx.user.role === "motorista" || ctx.user.role === "manutencao"
+              ? eq(reservations.userId, ctx.user.id)
+              : undefined
+          )
+        )
         .orderBy(desc(reservations.startDate))
         .limit(input.limit);
 
@@ -287,7 +320,15 @@ export const dashboardRouter = router({
           hasIssues: checklists.hasIssues,
         })
         .from(checklists)
-        .where(eq(checklists.vehicleId, input.vehicleId))
+        .where(
+          and(
+            eq(checklists.vehicleId, input.vehicleId),
+            eq(checklists.isDeleted, false),
+            ctx.user.role === "motorista"
+              ? eq(checklists.userId, ctx.user.id)
+              : undefined
+          )
+        )
         .orderBy(desc(checklists.executedAt))
         .limit(input.limit);
 
@@ -302,7 +343,15 @@ export const dashboardRouter = router({
           status: occurrences.status,
         })
         .from(occurrences)
-        .where(eq(occurrences.vehicleId, input.vehicleId))
+        .where(
+          and(
+            eq(occurrences.vehicleId, input.vehicleId),
+            eq(occurrences.isDeleted, false),
+            ctx.user.role === "motorista"
+              ? eq(occurrences.reportedById, ctx.user.id)
+              : undefined
+          )
+        )
         .orderBy(desc(occurrences.occurredAt))
         .limit(input.limit);
 
@@ -317,34 +366,44 @@ export const dashboardRouter = router({
           status: serviceOrders.status,
         })
         .from(serviceOrders)
-        .where(eq(serviceOrders.vehicleId, input.vehicleId))
+        .where(
+          and(
+            eq(serviceOrders.vehicleId, input.vehicleId),
+            eq(serviceOrders.isDeleted, false),
+            ctx.user.role === "motorista"
+              ? sql`false`
+              : ctx.user.role === "manutencao"
+                ? eq(serviceOrders.assignedToId, ctx.user.id)
+                : undefined
+          )
+        )
         .orderBy(desc(serviceOrders.openedAt))
         .limit(input.limit);
 
       // Combine and sort
       const timeline = [
-        ...vehicleReservations.map((r) => ({
+        ...vehicleReservations.map(r => ({
           id: r.id,
           type: "reservation" as const,
           date: r.date,
           description: r.description,
           meta: { status: r.status },
         })),
-        ...vehicleChecklists.map((c) => ({
+        ...vehicleChecklists.map(c => ({
           id: c.id,
           type: "checklist" as const,
           date: c.date,
           description: c.description,
           meta: { hasIssues: c.hasIssues },
         })),
-        ...vehicleOccurrences.map((o) => ({
+        ...vehicleOccurrences.map(o => ({
           id: o.id,
           type: "occurrence" as const,
           date: o.date,
           description: o.description,
           meta: { severity: o.severity, status: o.status },
         })),
-        ...vehicleSOs.map((so) => ({
+        ...vehicleSOs.map(so => ({
           id: so.id,
           type: "service_order" as const,
           date: so.date,

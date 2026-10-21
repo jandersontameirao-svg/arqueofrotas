@@ -18,19 +18,24 @@ export function exportToCSV<T extends Record<string, unknown>>(
   }
 
   // Create header row
-  const headers = columns.map((col) => col.label).join(";");
+  const headers = columns.map(col => col.label).join(";");
 
   // Create data rows
-  const rows = data.map((item) =>
+  const rows = data.map(item =>
     columns
-      .map((col) => {
+      .map(col => {
         const value = item[col.key];
         // Handle different types
         if (value === null || value === undefined) return "";
         if (typeof value === "string") {
           // Escape quotes and wrap in quotes if contains special chars
-          const escaped = value.replace(/"/g, '""');
-          if (escaped.includes(";") || escaped.includes('"') || escaped.includes("\n")) {
+          const safe = /^[\s]*[=+@-]/.test(value) ? `'${value}` : value;
+          const escaped = safe.replace(/"/g, '""');
+          if (
+            escaped.includes(";") ||
+            escaped.includes('"') ||
+            escaped.includes("\n")
+          ) {
             return `"${escaped}"`;
           }
           return escaped;
@@ -116,16 +121,18 @@ export async function exportToPDF<T extends Record<string, unknown>>(
   // Nome da empresa
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
-  doc.text("ArqueoFrotas - Grupo Arqueo", pageWidth - margin, 15, { align: "right" });
+  doc.text("ArqueoFrotas - Grupo Arqueo", pageWidth - margin, 15, {
+    align: "right",
+  });
 
   // Linha decorativa laranja
   doc.setFillColor(...accentColor);
   doc.rect(0, 35, pageWidth, 2, "F");
 
   // Preparar dados para a tabela
-  const tableHeaders = columns.map((col) => col.label);
-  const tableData = data.map((item) =>
-    columns.map((col) => {
+  const tableHeaders = columns.map(col => col.label);
+  const tableData = data.map(item =>
+    columns.map(col => {
       const value = item[col.key];
       if (value === null || value === undefined) return "-";
       if (value instanceof Date) return value.toLocaleDateString("pt-BR");
@@ -154,13 +161,16 @@ export async function exportToPDF<T extends Record<string, unknown>>(
     alternateRowStyles: {
       fillColor: [250, 250, 250],
     },
-    columnStyles: columns.reduce((acc, col, index) => {
-      if (col.width) {
-        acc[index] = { cellWidth: col.width };
-      }
-      return acc;
-    }, {} as Record<number, { cellWidth: number }>),
-    didDrawPage: (data) => {
+    columnStyles: columns.reduce(
+      (acc, col, index) => {
+        if (col.width) {
+          acc[index] = { cellWidth: col.width };
+        }
+        return acc;
+      },
+      {} as Record<number, { cellWidth: number }>
+    ),
+    didDrawPage: data => {
       // Footer em todas as páginas
       const pageNumber = doc.getCurrentPageInfo().pageNumber;
       const totalPages = doc.getNumberOfPages();
@@ -197,20 +207,29 @@ export async function exportToPDF<T extends Record<string, unknown>>(
   doc.save(`${filename}.pdf`);
 }
 
-export function formatDateForExport(date: Date | string | null | undefined): string {
+export function formatDateForExport(
+  date: Date | string | null | undefined
+): string {
   if (!date) return "";
   const d = typeof date === "string" ? new Date(date) : date;
   return d.toLocaleDateString("pt-BR");
 }
 
-export function formatDateTimeForExport(date: Date | string | null | undefined): string {
+export function formatDateTimeForExport(
+  date: Date | string | null | undefined
+): string {
   if (!date) return "";
   const d = typeof date === "string" ? new Date(date) : date;
   return d.toLocaleString("pt-BR");
 }
 
-export function formatCurrencyForExport(value: number | string | null | undefined): string {
+export function formatCurrencyForExport(
+  value: number | string | null | undefined
+): string {
   if (value === null || value === undefined) return "";
   const num = typeof value === "string" ? parseFloat(value) : value;
-  return num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return num.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }

@@ -1,3 +1,4 @@
+import { filterRows } from "@shared/filter-rows";
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -21,7 +22,18 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Wrench, Plus, Eye, Edit, CheckCircle, Play, Download, FileText, ChevronDown, Trash2 } from "lucide-react";
+import {
+  Wrench,
+  Plus,
+  Eye,
+  Edit,
+  CheckCircle,
+  Play,
+  Download,
+  FileText,
+  ChevronDown,
+  Trash2,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -34,8 +46,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { LABELS, SERVICE_ORDER_STATUSES, MAINTENANCE_TYPES } from "@shared/const";
-import { exportToCSV, exportToPDF, formatDateTimeForExport } from "@/lib/export";
+import {
+  LABELS,
+  SERVICE_ORDER_STATUSES,
+  MAINTENANCE_TYPES,
+} from "@shared/const";
+import {
+  exportToCSV,
+  exportToPDF,
+  formatDateTimeForExport,
+} from "@/lib/export";
 import { toast } from "sonner";
 
 type ServiceOrder = {
@@ -56,6 +76,7 @@ export function ServiceOrdersPage() {
   const canCreate = isGestor(user);
   const canManage = isManutencao(user);
 
+  const [tableSearch, setTableSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [deletingOS, setDeletingOS] = useState<ServiceOrder | null>(null);
@@ -69,27 +90,53 @@ export function ServiceOrdersPage() {
       setDeleteReason("");
       utils.serviceOrders.list.invalidate();
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(error.message || "Erro ao excluir ordem de serviço");
     },
   });
 
   const { data: serviceOrders, isLoading } = trpc.serviceOrders.list.useQuery({
-    status: statusFilter !== "all" ? (statusFilter as typeof SERVICE_ORDER_STATUSES[number]) : undefined,
-    maintenanceType: typeFilter !== "all" ? (typeFilter as typeof MAINTENANCE_TYPES[number]) : undefined,
+    status:
+      statusFilter !== "all"
+        ? (statusFilter as (typeof SERVICE_ORDER_STATUSES)[number])
+        : undefined,
+    maintenanceType:
+      typeFilter !== "all"
+        ? (typeFilter as (typeof MAINTENANCE_TYPES)[number])
+        : undefined,
   });
 
-  const handleExportCSV = () => {
-    if (!serviceOrders || serviceOrders.length === 0) {
+  const exportRows = filterRows(serviceOrders ?? [], tableSearch, [
+    "osCode",
+    "vehiclePlate",
+    "vehicleModel",
+    "description",
+    "assignedToName",
+  ]);
+
+  const handleExportCSV = async () => {
+    try {
+      await utils.reports.authorize.fetch();
+    } catch {
+      toast.error("Você não tem permissão para exportar.");
+      return;
+    }
+    if (!exportRows || exportRows.length === 0) {
       toast.error("Não há dados para exportar");
       return;
     }
 
-    const dataForExport = serviceOrders.map((o) => ({
+    const dataForExport = exportRows.map(o => ({
       ...o,
       osCodeFormatted: o.osCode || `#${o.id}`,
-      maintenanceTypeLabel: LABELS.maintenanceTypes[o.maintenanceType as keyof typeof LABELS.maintenanceTypes] || o.maintenanceType,
-      statusLabel: LABELS.serviceOrderStatuses[o.status as keyof typeof LABELS.serviceOrderStatuses] || o.status,
+      maintenanceTypeLabel:
+        LABELS.maintenanceTypes[
+          o.maintenanceType as keyof typeof LABELS.maintenanceTypes
+        ] || o.maintenanceType,
+      statusLabel:
+        LABELS.serviceOrderStatuses[
+          o.status as keyof typeof LABELS.serviceOrderStatuses
+        ] || o.status,
       openedAtFormatted: formatDateTimeForExport(o.openedAt),
     }));
 
@@ -111,18 +158,33 @@ export function ServiceOrdersPage() {
   };
 
   const handleExportPDF = async () => {
-    if (!serviceOrders || serviceOrders.length === 0) {
+    try {
+      await utils.reports.authorize.fetch();
+    } catch {
+      toast.error("Você não tem permissão para exportar.");
+      return;
+    }
+    if (!exportRows || exportRows.length === 0) {
       toast.error("Não há dados para exportar");
       return;
     }
 
-    const dataForPDF = serviceOrders.map((o) => ({
+    const dataForPDF = exportRows.map(o => ({
       osCode: o.osCode || `#${o.id}`,
       vehiclePlate: o.vehiclePlate,
       vehicleModel: o.vehicleModel,
-      maintenanceType: LABELS.maintenanceTypes[o.maintenanceType as keyof typeof LABELS.maintenanceTypes] || o.maintenanceType,
-      status: LABELS.serviceOrderStatuses[o.status as keyof typeof LABELS.serviceOrderStatuses] || o.status,
-      description: o.description.length > 40 ? o.description.substring(0, 40) + "..." : o.description,
+      maintenanceType:
+        LABELS.maintenanceTypes[
+          o.maintenanceType as keyof typeof LABELS.maintenanceTypes
+        ] || o.maintenanceType,
+      status:
+        LABELS.serviceOrderStatuses[
+          o.status as keyof typeof LABELS.serviceOrderStatuses
+        ] || o.status,
+      description:
+        o.description.length > 40
+          ? o.description.substring(0, 40) + "..."
+          : o.description,
       assignedToName: o.assignedToName ?? "-",
       openedAt: format(new Date(o.openedAt), "dd/MM/yyyy", { locale: ptBR }),
     }));
@@ -142,7 +204,7 @@ export function ServiceOrdersPage() {
         { key: "openedAt", label: "Abertura", width: 22 },
       ],
       {
-        subtitle: `Total: ${serviceOrders.length} ordens de serviço`,
+        subtitle: `Total: ${exportRows.length} ordens de serviço`,
         orientation: "landscape",
       }
     );
@@ -154,7 +216,7 @@ export function ServiceOrdersPage() {
       key: "osCode",
       header: "Código OS",
       sortable: true,
-      cell: (row) => (
+      cell: row => (
         <span className="font-mono font-medium text-primary">
           {row.osCode || `#${row.id}`}
         </span>
@@ -164,7 +226,7 @@ export function ServiceOrdersPage() {
       key: "vehiclePlate",
       header: "Veículo",
       sortable: true,
-      cell: (row) => (
+      cell: row => (
         <div>
           <p className="font-mono font-medium">{row.vehiclePlate}</p>
           <p className="text-xs text-muted-foreground">{row.vehicleModel}</p>
@@ -175,9 +237,17 @@ export function ServiceOrdersPage() {
       key: "maintenanceType",
       header: "Tipo",
       sortable: true,
-      cell: (row) => (
-        <Badge variant={row.maintenanceType === "preventiva" ? "secondary" : "destructive"}>
-          {LABELS.maintenanceTypes[row.maintenanceType as keyof typeof LABELS.maintenanceTypes]}
+      cell: row => (
+        <Badge
+          variant={
+            row.maintenanceType === "preventiva" ? "secondary" : "destructive"
+          }
+        >
+          {
+            LABELS.maintenanceTypes[
+              row.maintenanceType as keyof typeof LABELS.maintenanceTypes
+            ]
+          }
         </Badge>
       ),
     },
@@ -185,16 +255,23 @@ export function ServiceOrdersPage() {
       key: "status",
       header: "Status",
       sortable: true,
-      cell: (row) => (
+      cell: row => (
         <StatusBadge
-          status={row.status as "aberta" | "em_andamento" | "aguardando_pecas" | "concluida" | "cancelada"}
+          status={
+            row.status as
+              | "aberta"
+              | "em_andamento"
+              | "aguardando_pecas"
+              | "concluida"
+              | "cancelada"
+          }
         />
       ),
     },
     {
       key: "description",
       header: "Descrição",
-      cell: (row) => (
+      cell: row => (
         <p className="max-w-xs truncate text-sm">{row.description}</p>
       ),
     },
@@ -202,13 +279,14 @@ export function ServiceOrdersPage() {
       key: "assignedToName",
       header: "Responsável",
       sortable: true,
-      cell: (row) => row.assignedToName ?? "-",
+      cell: row => row.assignedToName ?? "-",
     },
     {
       key: "openedAt",
       header: "Abertura",
       sortable: true,
-      cell: (row) => format(new Date(row.openedAt), "dd/MM/yyyy", { locale: ptBR }),
+      cell: row =>
+        format(new Date(row.openedAt), "dd/MM/yyyy", { locale: ptBR }),
     },
   ];
 
@@ -216,33 +294,40 @@ export function ServiceOrdersPage() {
     {
       label: "Ver Detalhes",
       icon: <Eye className="h-4 w-4" />,
-      onClick: (row) => navigate(`/service-orders/${row.id}`),
+      onClick: row => navigate(`/service-orders/${row.id}`),
     },
     {
       label: "Iniciar",
       icon: <Play className="h-4 w-4" />,
-      onClick: (row) => navigate(`/service-orders/${row.id}?start=true`),
-      hidden: (row) => row.status !== "aberta" || !canManage,
+      onClick: row => navigate(`/service-orders/${row.id}?start=true`),
+      hidden: row => row.status !== "aberta" || !canManage,
     },
     {
       label: "Editar",
       icon: <Edit className="h-4 w-4" />,
-      onClick: (row) => navigate(`/service-orders/${row.id}/edit`),
-      hidden: (row) => row.status === "concluida" || row.status === "cancelada" || !canManage,
+      onClick: row => navigate(`/service-orders/${row.id}/edit`),
+      hidden: row =>
+        row.status === "concluida" || row.status === "cancelada" || !canManage,
     },
     {
       label: "Concluir",
       icon: <CheckCircle className="h-4 w-4" />,
-      onClick: (row) => navigate(`/service-orders/${row.id}?close=true`),
-      hidden: (row) =>
-        row.status === "concluida" || row.status === "cancelada" || row.status === "aberta" || !canManage,
+      onClick: row => navigate(`/service-orders/${row.id}?close=true`),
+      hidden: row =>
+        row.status === "concluida" ||
+        row.status === "cancelada" ||
+        row.status === "aberta" ||
+        !canManage,
     },
     {
       label: "Excluir",
       icon: <Trash2 className="h-4 w-4" />,
-      onClick: (row) => { setDeletingOS(row); setDeleteReason(""); },
+      onClick: row => {
+        setDeletingOS(row);
+        setDeleteReason("");
+      },
       hidden: () => !isGestor(user),
-      className: "text-red-600",
+      variant: "destructive",
     },
   ];
 
@@ -294,7 +379,7 @@ export function ServiceOrdersPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os Status</SelectItem>
-                  {SERVICE_ORDER_STATUSES.map((status) => (
+                  {SERVICE_ORDER_STATUSES.map(status => (
                     <SelectItem key={status} value={status}>
                       {LABELS.serviceOrderStatuses[status]}
                     </SelectItem>
@@ -309,7 +394,7 @@ export function ServiceOrdersPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os Tipos</SelectItem>
-                  {MAINTENANCE_TYPES.map((type) => (
+                  {MAINTENANCE_TYPES.map(type => (
                     <SelectItem key={type} value={type}>
                       {LABELS.maintenanceTypes[type]}
                     </SelectItem>
@@ -328,19 +413,36 @@ export function ServiceOrdersPage() {
         actions={actions}
         isLoading={isLoading}
         searchable
+        onSearchChange={setTableSearch}
         searchPlaceholder="Buscar por código, veículo ou descrição..."
-        searchKeys={["osCode", "vehiclePlate", "vehicleModel", "description", "assignedToName"]}
-        onRowClick={(row) => navigate(`/service-orders/${row.id}`)}
+        searchKeys={[
+          "osCode",
+          "vehiclePlate",
+          "vehicleModel",
+          "description",
+          "assignedToName",
+        ]}
+        onRowClick={row => navigate(`/service-orders/${row.id}`)}
         emptyMessage="Nenhuma ordem de serviço encontrada"
       />
 
       {/* Dialog de confirmação de exclusão */}
-      <Dialog open={!!deletingOS} onOpenChange={(open) => { if (!open) { setDeletingOS(null); setDeleteReason(""); } }}>
+      <Dialog
+        open={!!deletingOS}
+        onOpenChange={open => {
+          if (!open) {
+            setDeletingOS(null);
+            setDeleteReason("");
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Excluir Ordem de Serviço</DialogTitle>
             <DialogDescription>
-              Excluir a OS <strong>{deletingOS?.osCode || `#${deletingOS?.id}`}</strong>? Esta ação é irreversível.
+              Excluir a OS{" "}
+              <strong>{deletingOS?.osCode || `#${deletingOS?.id}`}</strong>?
+              Esta ação é irreversível.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -349,18 +451,30 @@ export function ServiceOrdersPage() {
               <Textarea
                 placeholder="Informe o motivo da exclusão..."
                 value={deleteReason}
-                onChange={(e) => setDeleteReason(e.target.value)}
+                onChange={e => setDeleteReason(e.target.value)}
                 className="min-h-[100px]"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setDeletingOS(null); setDeleteReason(""); }}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeletingOS(null);
+                setDeleteReason("");
+              }}
+            >
               Cancelar
             </Button>
             <Button
               variant="destructive"
-              onClick={() => deletingOS && deleteMutation.mutate({ id: deletingOS.id, reason: deleteReason })}
+              onClick={() =>
+                deletingOS &&
+                deleteMutation.mutate({
+                  id: deletingOS.id,
+                  reason: deleteReason,
+                })
+              }
               disabled={!deleteReason.trim() || deleteMutation.isPending}
             >
               Confirmar Exclusão

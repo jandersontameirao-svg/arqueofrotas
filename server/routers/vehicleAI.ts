@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, protectedProcedure } from "../_core/trpc";
+import { router, assistedExtractionProcedure } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
 
 // This router provides AI-powered vehicle data extraction from documents (CRLV, etc.)
@@ -7,7 +7,7 @@ import { invokeLLM } from "../_core/llm";
 
 export const vehicleAIRouter = router({
   // Extract vehicle data from a document image (CRLV, etc.)
-  extractFromDocument: protectedProcedure
+  extractFromDocument: assistedExtractionProcedure
     .input(
       z.object({
         imageBase64: z.string().min(1, "Imagem é obrigatória"),
@@ -66,16 +66,21 @@ Retorne SOMENTE o JSON, sem markdown, sem explicações.`,
         typeof result.choices[0]?.message?.content === "string"
           ? result.choices[0].message.content
           : Array.isArray(result.choices[0]?.message?.content)
-          ? result.choices[0].message.content
-              .filter((c): c is { type: "text"; text: string } => typeof c === "object" && "type" in c && c.type === "text")
-              .map((c) => c.text)
-              .join("")
-          : "";
+            ? result.choices[0].message.content
+                .filter(
+                  (c): c is { type: "text"; text: string } =>
+                    typeof c === "object" && "type" in c && c.type === "text"
+                )
+                .map(c => c.text)
+                .join("")
+            : "";
 
       // Parse JSON from response, handling possible markdown wrapping
       let cleanJson = responseText.trim();
       if (cleanJson.startsWith("```")) {
-        cleanJson = cleanJson.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
+        cleanJson = cleanJson
+          .replace(/^```(?:json)?\n?/, "")
+          .replace(/\n?```$/, "");
       }
 
       try {
@@ -104,7 +109,8 @@ Retorne SOMENTE o JSON, sem markdown, sem explicações.`,
           success: false,
           data: null,
           rawResponse: responseText,
-          error: "Não foi possível extrair os dados do documento. Tente com uma imagem mais nítida.",
+          error:
+            "Não foi possível extrair os dados do documento. Tente com uma imagem mais nítida.",
         };
       }
     }),

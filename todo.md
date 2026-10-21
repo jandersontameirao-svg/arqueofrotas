@@ -171,3 +171,22 @@
 - [ ] M1: Exclusão real de checklists (soft delete + confirmação + permissão + auditoria)
 - [ ] M2: Exclusão real de ocorrências (verificar/completar o que foi feito na sprint anterior)
 - [ ] Checkup final: 16 itens do checklist obrigatório
+
+## Entrega Técnica: Código-Fonte Completo
+- [x] Auditar arquivos do projeto e excluir somente dependências, builds, credenciais e dados de execução do pacote de entrega
+- [x] Gerar arquivo compactado reproduzível com código-fonte, schema, migrações, testes, configurações e documentação de instalação
+- [x] Validar a integridade do arquivo compactado e registrar checksum SHA-256
+
+## Revisão 21/10/2026: Fluxos Operacionais e Mobile
+- [x] Criar backup verificável do estado atual e trabalhar somente em cópia de revisão, preservando todos os arquivos e dados existentes
+- [x] Comparar a base d1133572, o projeto atual e review/ALTERACOES.patch; resolver conflitos sem substituir a aplicação inteira
+- [x] Incorporar autenticação ativa, permissões por operação/autoria/OS atribuída e acesso à frota integral do Grupo Arqueo
+- [x] Incorporar regras transacionais de checklist, evidências, quilometragem, ocorrências, manutenção, OS, reservas, retirada e devolução
+- [x] Incorporar /driver, PWA/fila offline, recuperação e contratos de integração locais, sem conectar serviços externos
+- [x] Ensaiar somente as migrations 0009–0012 em banco isolado após validar o histórico Drizzle; não tocar em produção
+- [x] Atualizar a documentação conforme o código efetivamente incorporado e validar testes, TypeScript, build e testes mobile
+
+## Correções de Salvaguarda da Revisão 21/10/2026
+- [x] Reexecutar o ensaio aditivo de 0009–0012 sobre banco isolado já preparado no estado 0000–0008, incluindo preflight de leitura
+- [x] Bloquear globalmente a suíte de testes contra DATABASE_URL herdada, exigindo FLEET_TEST_DATABASE_URL local para qualquer teste de banco
+- [x] Repetir a matriz de validação após as novas salvaguardas e documentar a tentativa inicial interrompida sem assumir efeito em infraestrutura externa

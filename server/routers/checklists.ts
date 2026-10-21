@@ -16,16 +16,20 @@ import { CHECKLIST_RESPONSES } from "@shared/const";
 import { TRPCError } from "@trpc/server";
 import { storagePut } from "../storage";
 
+import { checklistInput, submitChecklist } from "../domain/checklists";
+
 export const checklistsRouter = router({
   list: protectedProcedure
     .input(
-      z.object({
-        vehicleId: z.number().optional(),
-        userId: z.number().optional(),
-        startDate: z.date().optional(),
-        endDate: z.date().optional(),
-        hasIssues: z.boolean().optional(),
-      }).optional()
+      z
+        .object({
+          vehicleId: z.number().optional(),
+          userId: z.number().optional(),
+          startDate: z.date().optional(),
+          endDate: z.date().optional(),
+          hasIssues: z.boolean().optional(),
+        })
+        .optional()
     )
     .query(async ({ input, ctx }) => {
       const db = await getDb();
@@ -74,9 +78,12 @@ export const checklistsRouter = router({
         .from(checklists)
         .innerJoin(vehicles, eq(checklists.vehicleId, vehicles.id))
         .innerJoin(users, eq(checklists.userId, users.id))
-        .innerJoin(checklistTemplates, eq(checklists.templateId, checklistTemplates.id))
+        .innerJoin(
+          checklistTemplates,
+          eq(checklists.templateId, checklistTemplates.id)
+        )
         .where(conditions.length > 0 ? and(...conditions) : undefined)
-        .orderBy(desc(checklists.executedAt));
+        .orderBy(desc(checklists.executedAt), desc(checklists.id));
 
       return result;
     }),
@@ -106,8 +113,13 @@ export const checklistsRouter = router({
         .from(checklists)
         .innerJoin(vehicles, eq(checklists.vehicleId, vehicles.id))
         .innerJoin(users, eq(checklists.userId, users.id))
-        .innerJoin(checklistTemplates, eq(checklists.templateId, checklistTemplates.id))
-        .where(and(eq(checklists.id, input.id), eq(checklists.isDeleted, false)))
+        .innerJoin(
+          checklistTemplates,
+          eq(checklists.templateId, checklistTemplates.id)
+        )
+        .where(
+          and(eq(checklists.id, input.id), eq(checklists.isDeleted, false))
+        )
         .limit(1);
 
       if (!checklist) return null;
@@ -154,6 +166,7 @@ export const checklistsRouter = router({
         .where(
           and(
             eq(checklists.vehicleId, input.vehicleId),
+            eq(checklists.isDeleted, false),
             eq(checklists.userId, ctx.user.id),
             gte(checklists.executedAt, today),
             lte(checklists.executedAt, tomorrow)
@@ -170,170 +183,21 @@ export const checklistsRouter = router({
 
   // Submit a new checklist
   submit: protectedProcedure
-    .input(
-      z.object({
-        vehicleId: z.number(),
-        templateId: z.number(),
-        km: z.number().min(0).optional(),
-        observations: z.string().optional(),
-        responses: z.array(
-          z.object({
-            templateItemId: z.number(),
-            response: z.enum(CHECKLIST_RESPONSES),
-            comment: z.string().optional(),
-            photoData: z.string().optional(), // Base64
-            photoFileName: z.string().optional(),
-          })
-        ),
-      })
-    )
+    .input(checklistInput)
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
-
-      // Check if vehicle exists and is active
-      const [vehicle] = await db
-        .select()
-        .from(vehicles)
-        .where(eq(vehicles.id, input.vehicleId))
-        .limit(1);
-
-      if (!vehicle || !vehicle.active) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Veículo não encontrado",
-        });
-      }
-
-      // Get template items to check for critical items
-      const templateItems = await db
-        .select()
-        .from(checklistTemplateItems)
-        .where(
-          and(
-            eq(checklistTemplateItems.templateId, input.templateId),
-            eq(checklistTemplateItems.active, true)
-          )
-        );
-
-      const criticalItemIds = templateItems
-        .filter((item) => item.isCritical)
-        .map((item) => item.id);
-
-      // Check if any critical item has "nao_ok" response
-      const hasIssues = input.responses.some(
-        (r) => r.response === "nao_ok" && criticalItemIds.includes(r.templateItemId)
-      );
-
-      // Create checklist
-      const checklistResult = await db.insert(checklists).values({
-        vehicleId: input.vehicleId,
-        userId: ctx.user.id,
-        templateId: input.templateId,
-        km: input.km,
-        observations: input.observations,
-        hasIssues,
-        executedAt: new Date(),
-      });
-      const checklistId = checklistResult[0].insertId;
-
-      // Process responses
-      for (const response of input.responses) {
-        let photoUrl: string | undefined;
-        let occurrenceId: number | undefined;
-
-        // Upload photo if provided
-        if (response.photoData && response.photoFileName) {
-          const buffer = Buffer.from(response.photoData, "base64");
-          const key = `checklists/${checklistId}/${Date.now()}-${response.photoFileName}`;
-          const uploadResult = await storagePut(key, buffer, "image/jpeg");
-          photoUrl = uploadResult.url;
-        }
-
-        // Create occurrence for critical items with "nao_ok"
-        if (
-          response.response === "nao_ok" &&
-          criticalItemIds.includes(response.templateItemId)
-        ) {
-          const templateItem = templateItems.find(
-            (item) => item.id === response.templateItemId
-          );
-
-          const occurrenceResult = await db.insert(occurrences).values({
-            vehicleId: input.vehicleId,
-            reportedById: ctx.user.id,
-            occurredAt: new Date(),
-            description: `Checklist: ${templateItem?.description ?? "Item crítico"} - ${response.comment ?? "Não conforme"}`,
-            severity: "alta",
-            status: "aberto",
-          });
-          occurrenceId = occurrenceResult[0].insertId;
-
-          // If severity is high, set vehicle to maintenance
-          await db
-            .update(vehicles)
-            .set({ status: "manutencao" })
-            .where(eq(vehicles.id, input.vehicleId));
-
-          await createAuditLog({
-            user: ctx.user,
-            action: "OCCURRENCE_OPEN",
-            entityType: "occurrence",
-            entityId: occurrenceId,
-            newData: {
-              vehicleId: input.vehicleId,
-              fromChecklist: true,
-              checklistId,
-              templateItemId: response.templateItemId,
-            },
-            ...getRequestInfo(ctx.req),
-          });
-
-          await createAuditLog({
-            user: ctx.user,
-            action: "STATUS_CHANGE",
-            entityType: "vehicle",
-            entityId: input.vehicleId,
-            previousData: { status: vehicle.status },
-            newData: { status: "manutencao", reason: "Ocorrência crítica de checklist" },
-            ...getRequestInfo(ctx.req),
-          });
-        }
-
-        // Insert response
-        await db.insert(checklistResponses).values({
-          checklistId,
-          templateItemId: response.templateItemId,
-          response: response.response,
-          comment: response.comment,
-          photoUrl,
-          occurrenceId,
-        });
-      }
-
-      await createAuditLog({
-        user: ctx.user,
-        action: "CHECKLIST_SUBMIT",
-        entityType: "checklist",
-        entityId: checklistId,
-        newData: {
-          vehicleId: input.vehicleId,
-          templateId: input.templateId,
-          hasIssues,
-          responsesCount: input.responses.length,
-        },
-        ...getRequestInfo(ctx.req),
-      });
-
-      return { id: checklistId, hasIssues };
+      return submitChecklist(db, ctx.user, input);
     }),
 
   // Get pending checklists (vehicles without checklist today)
   getPending: protectedProcedure
     .input(
-      z.object({
-        unitId: z.number().optional(),
-      }).optional()
+      z
+        .object({
+          unitId: z.number().optional(),
+        })
+        .optional()
     )
     .query(async ({ input, ctx }) => {
       const db = await getDb();
@@ -376,11 +240,11 @@ export const checklistsRouter = router({
           )
         );
 
-      const completedVehicleIds = completedToday.map((c) => c.vehicleId);
+      const completedVehicleIds = completedToday.map(c => c.vehicleId);
 
       // Filter out completed vehicles
       const pending = allVehicles.filter(
-        (v) => !completedVehicleIds.includes(v.id)
+        v => !completedVehicleIds.includes(v.id)
       );
 
       return pending;
@@ -389,11 +253,13 @@ export const checklistsRouter = router({
   // Get checklist statistics for dashboard
   stats: gestorProcedure
     .input(
-      z.object({
-        startDate: z.date().optional(),
-        endDate: z.date().optional(),
-        unitId: z.number().optional(),
-      }).optional()
+      z
+        .object({
+          startDate: z.date().optional(),
+          endDate: z.date().optional(),
+          unitId: z.number().optional(),
+        })
+        .optional()
     )
     .query(async ({ input }) => {
       const db = await getDb();
@@ -421,8 +287,9 @@ export const checklistsRouter = router({
         .where(conditions.length > 0 ? and(...conditions) : undefined);
 
       const total = allChecklists.length;
-      const withIssues = allChecklists.filter((c) => c.hasIssues).length;
-      const conformidade = total > 0 ? Math.round(((total - withIssues) / total) * 100) : 100;
+      const withIssues = allChecklists.filter(c => c.hasIssues).length;
+      const conformidade =
+        total > 0 ? Math.round(((total - withIssues) / total) * 100) : 100;
 
       return {
         total,
@@ -442,7 +309,9 @@ export const checklistsRouter = router({
       const [previous] = await db
         .select()
         .from(checklists)
-        .where(and(eq(checklists.id, input.id), eq(checklists.isDeleted, false)))
+        .where(
+          and(eq(checklists.id, input.id), eq(checklists.isDeleted, false))
+        )
         .limit(1);
 
       if (!previous) {
