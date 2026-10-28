@@ -78,12 +78,19 @@ EXIT;
 
 ## 4. Clonar o projeto
 
+As mudanças de login próprio + deploy estão no branch
+`feat/login-proprio-deploy`. Clone já apontando para ele:
+
 ```bash
 mkdir -p /var/www
 cd /var/www
-git clone https://github.com/jandersontameirao-svg/arqueofrotas.git arqueofrotas
+git clone -b feat/login-proprio-deploy \
+  https://github.com/jandersontameirao-svg/arqueofrotas.git arqueofrotas
 cd /var/www/arqueofrotas
 ```
+
+> Depois que você revisar e fizer o merge desse branch na branch principal no
+> GitHub, pode clonar normalmente (sem o `-b`).
 
 ---
 
