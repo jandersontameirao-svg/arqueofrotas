@@ -9,6 +9,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 
 import { DriverPage } from "@/pages/driver/DriverPage";
+import { LoginPage } from "@/pages/auth/LoginPage";
 
 // Pages
 import { DashboardPage } from "@/pages/dashboard/DashboardPage";
@@ -207,7 +208,12 @@ function App() {
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
-          <AppRoutes />
+          <Switch>
+            <Route path="/login" component={LoginPage} />
+            <Route>
+              <AppRoutes />
+            </Route>
+          </Switch>
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
