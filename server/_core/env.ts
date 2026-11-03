@@ -12,4 +12,11 @@ export const ENV = {
   openaiBaseUrl:
     process.env.OPENAI_BASE_URL ?? process.env.BUILT_IN_FORGE_API_URL ?? "https://api.openai.com",
   openaiModel: process.env.OPENAI_MODEL ?? "gpt-6-luna",
+  // API externa para a Atena OS consumir/alimentar a frota.
+  // Token de serviço (Bearer) que a Atena envia em cada requisição.
+  atenaApiToken: process.env.ATENA_API_TOKEN ?? "",
+  // Webhook de saída: o arqueofrotas avisa a Atena quando algo muda.
+  atenaWebhookUrl: process.env.ATENA_WEBHOOK_URL ?? "",
+  // Segredo usado para assinar (HMAC-SHA256) o corpo do webhook.
+  atenaWebhookSecret: process.env.ATENA_WEBHOOK_SECRET ?? "",
 };
