@@ -985,6 +985,79 @@ export const appNotificationsRelations = relations(
   })
 );
 
+// ============================================
+// ATENA — ASSISTENTE OPERACIONAL COM IA
+// ============================================
+
+// Diretrizes aprendidas (memória). Viram parte do system prompt da Atena.
+export const atenaMemories = mysqlTable("atenaMemories", {
+  id: int("id").autoincrement().primaryKey(),
+  directive: text("directive").notNull(), // regra imperativa reutilizável
+  category: mysqlEnum("atenaMemoryCategory", [
+    "custo",
+    "processo",
+    "preferencia",
+    "comercial",
+    "tecnico",
+    "prazo",
+    "modelo_escopo",
+    "geral",
+  ])
+    .default("geral")
+    .notNull(),
+  active: boolean("active").default(true).notNull(),
+  createdById: int("createdById"),
+  createdByName: varchar("createdByName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AtenaMemory = typeof atenaMemories.$inferSelect;
+export type InsertAtenaMemory = typeof atenaMemories.$inferInsert;
+
+// Histórico de conversa. Escopo: vehicleId null = chat geral; senão, por veículo.
+export const atenaChatMessages = mysqlTable("atenaChatMessages", {
+  id: int("id").autoincrement().primaryKey(),
+  role: mysqlEnum("atenaRole", ["user", "assistant"]).notNull(),
+  content: text("content").notNull(),
+  authorId: int("authorId"),
+  authorName: varchar("authorName", { length: 255 }),
+  vehicleId: int("vehicleId"),
+  category: varchar("category", { length: 50 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AtenaChatMessage = typeof atenaChatMessages.$inferSelect;
+export type InsertAtenaChatMessage = typeof atenaChatMessages.$inferInsert;
+
+// ============================================
+// OBSERVAÇÕES — canal interno de feedback sobre o sistema
+// ============================================
+
+export const observacoes = mysqlTable("observacoes", {
+  id: int("id").autoincrement().primaryKey(),
+  titulo: varchar("titulo", { length: 255 }).notNull(),
+  descricao: text("descricao").notNull(),
+  categoria: mysqlEnum("observacaoCategoria", [
+    "reclamacao",
+    "melhoria",
+    "bug",
+    "caracteristica",
+  ]).notNull(),
+  area: varchar("area", { length: 100 }),
+  imagens: json("imagens"), // array de URLs (prints colados)
+  status: mysqlEnum("observacaoStatus", ["aberta", "em_analise", "resolvida"])
+    .default("aberta")
+    .notNull(),
+  criadoPorId: int("criadoPorId"),
+  criadoPorNome: varchar("criadoPorNome", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Observacao = typeof observacoes.$inferSelect;
+export type InsertObservacao = typeof observacoes.$inferInsert;
+
 // Additive operational records. No existing files or readings are rewritten.
 export const operationReceipts = mysqlTable("operationReceipts", {
   id: varchar("id", { length: 64 }).primaryKey(),

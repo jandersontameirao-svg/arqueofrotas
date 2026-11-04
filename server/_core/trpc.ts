@@ -46,7 +46,7 @@ const operationMiddleware = t.middleware(async opts => {
     user => opts.next({ ctx: { ...opts.ctx, user } })
   );
 });
-const authenticatedProcedure = t.procedure.use(requireUser);
+export const authenticatedProcedure = t.procedure.use(requireUser);
 export const protectedProcedure =
   authenticatedProcedure.use(operationMiddleware);
 

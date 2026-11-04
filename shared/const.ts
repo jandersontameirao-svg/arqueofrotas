@@ -141,6 +141,17 @@ export type MaintenanceType = typeof MAINTENANCE_TYPES[number];
 export const RESERVATION_STATUSES = ['agendada', 'em_uso', 'concluida', 'cancelada'] as const;
 export type ReservationStatus = typeof RESERVATION_STATUSES[number];
 
+// Atena — categorias de memória (diretrizes aprendidas)
+export const ATENA_MEMORY_CATEGORIES = ['custo', 'processo', 'preferencia', 'comercial', 'tecnico', 'prazo', 'modelo_escopo', 'geral'] as const;
+export type AtenaMemoryCategory = typeof ATENA_MEMORY_CATEGORIES[number];
+
+// Observações — categorias e status
+export const OBSERVACAO_CATEGORIES = ['reclamacao', 'melhoria', 'bug', 'caracteristica'] as const;
+export type ObservacaoCategory = typeof OBSERVACAO_CATEGORIES[number];
+
+export const OBSERVACAO_STATUSES = ['aberta', 'em_analise', 'resolvida'] as const;
+export type ObservacaoStatus = typeof OBSERVACAO_STATUSES[number];
+
 // Labels for display (pt-BR)
 export const LABELS = {
   roles: {
@@ -223,5 +234,26 @@ export const LABELS = {
     em_uso: 'Em Uso',
     concluida: 'Concluída',
     cancelada: 'Cancelada',
+  },
+  atenaMemoryCategories: {
+    custo: 'Custo',
+    processo: 'Processo',
+    preferencia: 'Preferência',
+    comercial: 'Comercial',
+    tecnico: 'Técnico',
+    prazo: 'Prazo',
+    modelo_escopo: 'Modelo/Escopo',
+    geral: 'Geral',
+  },
+  observacaoCategories: {
+    reclamacao: 'Reclamação',
+    melhoria: 'Melhoria',
+    bug: 'Bug',
+    caracteristica: 'Característica',
+  },
+  observacaoStatuses: {
+    aberta: 'Aberta',
+    em_analise: 'Em Análise',
+    resolvida: 'Resolvida',
   },
 } as const;

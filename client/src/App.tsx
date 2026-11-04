@@ -39,6 +39,8 @@ import { VehicleFineFormPage } from "@/pages/fines/VehicleFineFormPage";
 import { VehicleFineDetailPage } from "@/pages/fines/VehicleFineDetailPage";
 import { VehicleAIPage } from "@/pages/vehicles/VehicleAIPage";
 import { NotificationsPage } from "@/pages/notifications/NotificationsPage";
+import { AtenaPage } from "@/pages/atena/AtenaPage";
+import { ObservacoesPage } from "@/pages/observacoes/ObservacoesPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth({
@@ -183,6 +185,12 @@ function AppRoutes() {
           <Route path="/fines/:id/edit" component={VehicleFineFormPage} />
 
           {/* Vehicle AI Registration */}
+
+          {/* Atena — assistente de IA */}
+          <Route path="/atena" component={AtenaPage} />
+
+          {/* Observações — feedback interno */}
+          <Route path="/observacoes" component={ObservacoesPage} />
 
           {/* Notifications */}
           <Route path="/notifications" component={NotificationsPage} />
