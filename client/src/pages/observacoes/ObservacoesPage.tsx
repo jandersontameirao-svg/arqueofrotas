@@ -103,6 +103,39 @@ export function ObservacoesPage() {
     onError: err => toast.error(err.message),
   });
 
+  // Comprime o print colado (redimensiona p/ no máx. 1280px e exporta JPEG)
+  // para caber no limite do servidor e não inchar o banco com base64 gigante.
+  const compressImage = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const maxDim = 1280;
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            const scale = Math.min(maxDim / width, maxDim / height);
+            width = Math.round(width * scale);
+            height = Math.round(height * scale);
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            resolve(String(reader.result));
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", 0.7));
+        };
+        img.onerror = reject;
+        img.src = String(reader.result);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
   const onPaste = (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
     if (!items) return;
@@ -110,13 +143,11 @@ export function ObservacoesPage() {
       if (item.type.startsWith("image/")) {
         const file = item.getAsFile();
         if (!file) continue;
-        const reader = new FileReader();
-        reader.onload = () => {
-          setImagens(prev =>
-            prev.length >= 8 ? prev : [...prev, String(reader.result)]
-          );
-        };
-        reader.readAsDataURL(file);
+        compressImage(file)
+          .then(dataUrl =>
+            setImagens(prev => (prev.length >= 8 ? prev : [...prev, dataUrl]))
+          )
+          .catch(() => toast.error("Não consegui processar a imagem colada."));
       }
     }
   };

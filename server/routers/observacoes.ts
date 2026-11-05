@@ -60,8 +60,9 @@ export const observacoesRouter = router({
         descricao: z.string().min(1).max(10000),
         categoria: z.enum(OBSERVACAO_CATEGORIES),
         area: z.string().max(100).optional(),
-        // Aceita URL relativa do storage (print colado) e nomes vazios.
-        imagens: z.array(z.string().max(2048)).max(8).optional(),
+        // Prints colados chegam como data URL (base64) já comprimidos no cliente
+        // (~JPEG 1280px). O limite por imagem acomoda isso; o array fica em 8.
+        imagens: z.array(z.string().max(1_500_000)).max(8).optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
