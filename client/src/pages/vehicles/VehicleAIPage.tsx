@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Bot, Upload, ArrowLeft, Loader2, Save, CheckCircle, AlertTriangle, Car } from "lucide-react";
+import { Bot, Upload, ArrowLeft, Loader2, Save, CheckCircle, AlertTriangle, Car, FileText } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useState, useRef } from "react";
 import { toast } from "sonner";
@@ -36,6 +36,7 @@ export function VehicleAIPage() {
 
   const [step, setStep] = useState<"upload" | "review" | "saving">("upload");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [pdfName, setPdfName] = useState<string | null>(null);
   const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
 
   // Editable fields for review
@@ -87,12 +88,19 @@ export function VehicleAIPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Preview
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setImagePreview(ev.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+    const isPdf = file.type === "application/pdf";
+    // Preview: imagem vai no <img>; PDF mostra o nome do arquivo.
+    if (isPdf) {
+      setImagePreview(null);
+      setPdfName(file.name);
+    } else {
+      setPdfName(null);
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setImagePreview(ev.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
 
     // Convert to base64 for API
     const buffer = await file.arrayBuffer();
@@ -136,7 +144,7 @@ export function VehicleAIPage() {
         </Button>
         <PageHeader
           title="Cadastro por IA"
-          description="Envie uma foto do CRLV e a IA preencherá os dados automaticamente"
+          description="Envie o PDF ou a foto do CRLV e a IA preencherá os dados automaticamente"
           icon={Bot}
         />
       </div>
@@ -149,8 +157,8 @@ export function VehicleAIPage() {
               Enviar Documento
             </CardTitle>
             <CardDescription>
-              Tire uma foto ou envie uma imagem do CRLV, CRV ou documento do veículo.
-              A IA extrairá os dados automaticamente para sua revisão.
+              Envie o PDF (CRLV digital) ou uma foto/imagem do CRLV, CRV ou documento
+              do veículo. A IA extrairá os dados automaticamente para sua revisão.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -169,7 +177,15 @@ export function VehicleAIPage() {
               ) : imagePreview ? (
                 <div className="flex flex-col items-center gap-4">
                   <img src={imagePreview} alt="Preview" className="max-h-64 rounded-lg" />
-                  <p className="text-sm text-muted-foreground">Clique para trocar a imagem</p>
+                  <p className="text-sm text-muted-foreground">Clique para trocar o arquivo</p>
+                </div>
+              ) : pdfName ? (
+                <div className="flex flex-col items-center gap-4">
+                  <FileText className="h-16 w-16 text-primary" />
+                  <div>
+                    <p className="font-medium break-all">{pdfName}</p>
+                    <p className="text-sm text-muted-foreground">Clique para trocar o arquivo</p>
+                  </div>
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-4">
@@ -177,7 +193,7 @@ export function VehicleAIPage() {
                   <div>
                     <p className="text-lg font-medium">Clique para enviar</p>
                     <p className="text-sm text-muted-foreground">
-                      Aceita: JPG, PNG, WebP (máx. 10MB)
+                      Aceita: PDF, JPG, PNG, WebP (máx. 10MB)
                     </p>
                   </div>
                 </div>
@@ -186,7 +202,7 @@ export function VehicleAIPage() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="application/pdf,image/jpeg,image/png,image/webp"
               className="hidden"
               onChange={handleFileSelect}
             />
@@ -335,6 +351,7 @@ export function VehicleAIPage() {
                     setStep("upload");
                     setExtractedData(null);
                     setImagePreview(null);
+                    setPdfName(null);
                   }}
                 >
                   <ArrowLeft className="h-4 w-4 mr-2" />
