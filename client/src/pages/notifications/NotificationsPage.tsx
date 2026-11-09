@@ -120,6 +120,7 @@ export function NotificationsPage() {
                     <Button
                       size="icon"
                       variant="ghost"
+                      aria-label="Marcar como lida"
                       onClick={() => markAsReadMutation.mutate({ id: notification.id })}
                     >
                       <Check className="h-4 w-4" />
@@ -129,6 +130,7 @@ export function NotificationsPage() {
                     size="icon"
                     variant="ghost"
                     className="text-destructive hover:text-destructive"
+                    aria-label="Excluir notificação"
                     onClick={() => deleteMutation.mutate({ id: notification.id })}
                   >
                     <Trash2 className="h-4 w-4" />

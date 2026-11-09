@@ -23,6 +23,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   MessageSquarePlus,
   Sparkles,
   Trash2,
@@ -266,6 +277,8 @@ export function ObservacoesPage() {
                           className="h-16 w-16 object-cover rounded border"
                         />
                         <button
+                          type="button"
+                          aria-label={`Remover imagem ${i + 1}`}
                           onClick={() =>
                             setImagens(prev => prev.filter((_, j) => j !== i))
                           }
@@ -336,14 +349,36 @@ export function ObservacoesPage() {
                       {o.descricao}
                     </p>
                   </div>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="text-destructive hover:text-destructive shrink-0"
-                    onClick={() => deleteMut.mutate({ id: o.id })}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="text-destructive hover:text-destructive shrink-0"
+                        aria-label="Excluir observação"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir observação</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Tem certeza que deseja excluir esta observação? Esta
+                          ação não pode ser desfeita.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          onClick={() => deleteMut.mutate({ id: o.id })}
+                        >
+                          Excluir
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
 
                 {Array.isArray(o.imagens) && o.imagens.length > 0 && (

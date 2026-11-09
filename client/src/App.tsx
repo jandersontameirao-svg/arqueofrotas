@@ -7,40 +7,111 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Loader2 } from "lucide-react";
+import { lazy, Suspense } from "react";
 
-import { DriverPage } from "@/pages/driver/DriverPage";
-import { LoginPage } from "@/pages/auth/LoginPage";
+// Páginas carregadas sob demanda (code-splitting): cada rota vira um chunk
+// separado, deixando a 1ª carga muito mais leve (importante no celular em campo).
+const DriverPage = lazy(() =>
+  import("@/pages/driver/DriverPage").then(m => ({ default: m.DriverPage }))
+);
+const LoginPage = lazy(() =>
+  import("@/pages/auth/LoginPage").then(m => ({ default: m.LoginPage }))
+);
+const DashboardPage = lazy(() =>
+  import("@/pages/dashboard/DashboardPage").then(m => ({ default: m.DashboardPage }))
+);
+const VehiclesPage = lazy(() =>
+  import("@/pages/vehicles/VehiclesPage").then(m => ({ default: m.VehiclesPage }))
+);
+const VehicleFormPage = lazy(() =>
+  import("@/pages/vehicles/VehicleFormPage").then(m => ({ default: m.VehicleFormPage }))
+);
+const VehicleDetailPage = lazy(() =>
+  import("@/pages/vehicles/VehicleDetailPage").then(m => ({ default: m.VehicleDetailPage }))
+);
+const ChecklistsPage = lazy(() =>
+  import("@/pages/checklists/ChecklistsPage").then(m => ({ default: m.ChecklistsPage }))
+);
+const ChecklistExecutePage = lazy(() =>
+  import("@/pages/checklists/ChecklistExecutePage").then(m => ({ default: m.ChecklistExecutePage }))
+);
+const ChecklistDetailPage = lazy(() =>
+  import("@/pages/checklists/ChecklistDetailPage").then(m => ({ default: m.ChecklistDetailPage }))
+);
+const ChecklistTemplatesPage = lazy(() =>
+  import("@/pages/checklist-templates/ChecklistTemplatesPage").then(m => ({ default: m.ChecklistTemplatesPage }))
+);
+const ChecklistTemplateFormPage = lazy(() =>
+  import("@/pages/checklist-templates/ChecklistTemplateFormPage").then(m => ({ default: m.ChecklistTemplateFormPage }))
+);
+const ChecklistTemplateDetailPage = lazy(() =>
+  import("@/pages/checklist-templates/ChecklistTemplateDetailPage").then(m => ({ default: m.ChecklistTemplateDetailPage }))
+);
+const OccurrencesPage = lazy(() =>
+  import("@/pages/occurrences/OccurrencesPage").then(m => ({ default: m.OccurrencesPage }))
+);
+const OccurrenceFormPage = lazy(() =>
+  import("@/pages/occurrences/OccurrenceFormPage").then(m => ({ default: m.OccurrenceFormPage }))
+);
+const OccurrenceDetailPage = lazy(() =>
+  import("@/pages/occurrences/OccurrenceDetailPage").then(m => ({ default: m.OccurrenceDetailPage }))
+);
+const ServiceOrdersPage = lazy(() =>
+  import("@/pages/service-orders/ServiceOrdersPage").then(m => ({ default: m.ServiceOrdersPage }))
+);
+const ServiceOrderFormPage = lazy(() =>
+  import("@/pages/service-orders/ServiceOrderFormPage").then(m => ({ default: m.ServiceOrderFormPage }))
+);
+const ServiceOrderDetailPage = lazy(() =>
+  import("@/pages/service-orders/ServiceOrderDetailPage").then(m => ({ default: m.ServiceOrderDetailPage }))
+);
+const UsersPage = lazy(() =>
+  import("@/pages/users/UsersPage").then(m => ({ default: m.UsersPage }))
+);
+const UserFormPage = lazy(() =>
+  import("@/pages/users/UserFormPage").then(m => ({ default: m.UserFormPage }))
+);
+const UserDetailPage = lazy(() =>
+  import("@/pages/users/UserDetailPage").then(m => ({ default: m.UserDetailPage }))
+);
+const AuditLogsPage = lazy(() =>
+  import("@/pages/audit/AuditLogsPage").then(m => ({ default: m.AuditLogsPage }))
+);
+const ServiceProvidersPage = lazy(() =>
+  import("@/pages/service-providers/ServiceProvidersPage").then(m => ({ default: m.ServiceProvidersPage }))
+);
+const ServiceProviderFormPage = lazy(() =>
+  import("@/pages/service-providers/ServiceProviderFormPage").then(m => ({ default: m.ServiceProviderFormPage }))
+);
+const VehicleFinesPage = lazy(() =>
+  import("@/pages/fines/VehicleFinesPage").then(m => ({ default: m.VehicleFinesPage }))
+);
+const VehicleFineFormPage = lazy(() =>
+  import("@/pages/fines/VehicleFineFormPage").then(m => ({ default: m.VehicleFineFormPage }))
+);
+const VehicleFineDetailPage = lazy(() =>
+  import("@/pages/fines/VehicleFineDetailPage").then(m => ({ default: m.VehicleFineDetailPage }))
+);
+const VehicleAIPage = lazy(() =>
+  import("@/pages/vehicles/VehicleAIPage").then(m => ({ default: m.VehicleAIPage }))
+);
+const NotificationsPage = lazy(() =>
+  import("@/pages/notifications/NotificationsPage").then(m => ({ default: m.NotificationsPage }))
+);
+const AtenaPage = lazy(() =>
+  import("@/pages/atena/AtenaPage").then(m => ({ default: m.AtenaPage }))
+);
+const ObservacoesPage = lazy(() =>
+  import("@/pages/observacoes/ObservacoesPage").then(m => ({ default: m.ObservacoesPage }))
+);
 
-// Pages
-import { DashboardPage } from "@/pages/dashboard/DashboardPage";
-import { VehiclesPage } from "@/pages/vehicles/VehiclesPage";
-import { VehicleFormPage } from "@/pages/vehicles/VehicleFormPage";
-import { VehicleDetailPage } from "@/pages/vehicles/VehicleDetailPage";
-import { ChecklistsPage } from "@/pages/checklists/ChecklistsPage";
-import { ChecklistExecutePage } from "@/pages/checklists/ChecklistExecutePage";
-import { ChecklistDetailPage } from "@/pages/checklists/ChecklistDetailPage";
-import { ChecklistTemplatesPage } from "@/pages/checklist-templates/ChecklistTemplatesPage";
-import { ChecklistTemplateFormPage } from "@/pages/checklist-templates/ChecklistTemplateFormPage";
-import { ChecklistTemplateDetailPage } from "@/pages/checklist-templates/ChecklistTemplateDetailPage";
-import { OccurrencesPage } from "@/pages/occurrences/OccurrencesPage";
-import { OccurrenceFormPage } from "@/pages/occurrences/OccurrenceFormPage";
-import { OccurrenceDetailPage } from "@/pages/occurrences/OccurrenceDetailPage";
-import { ServiceOrdersPage } from "@/pages/service-orders/ServiceOrdersPage";
-import { ServiceOrderFormPage } from "@/pages/service-orders/ServiceOrderFormPage";
-import { ServiceOrderDetailPage } from "@/pages/service-orders/ServiceOrderDetailPage";
-import { UsersPage } from "@/pages/users/UsersPage";
-import { UserFormPage } from "@/pages/users/UserFormPage";
-import { UserDetailPage } from "@/pages/users/UserDetailPage";
-import { AuditLogsPage } from "@/pages/audit/AuditLogsPage";
-import { ServiceProvidersPage } from "@/pages/service-providers/ServiceProvidersPage";
-import { ServiceProviderFormPage } from "@/pages/service-providers/ServiceProviderFormPage";
-import { VehicleFinesPage } from "@/pages/fines/VehicleFinesPage";
-import { VehicleFineFormPage } from "@/pages/fines/VehicleFineFormPage";
-import { VehicleFineDetailPage } from "@/pages/fines/VehicleFineDetailPage";
-import { VehicleAIPage } from "@/pages/vehicles/VehicleAIPage";
-import { NotificationsPage } from "@/pages/notifications/NotificationsPage";
-import { AtenaPage } from "@/pages/atena/AtenaPage";
-import { ObservacoesPage } from "@/pages/observacoes/ObservacoesPage";
+function PageFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  );
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth({
@@ -216,12 +287,14 @@ function App() {
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
-          <Switch>
-            <Route path="/login" component={LoginPage} />
-            <Route>
-              <AppRoutes />
-            </Route>
-          </Switch>
+          <Suspense fallback={<PageFallback />}>
+            <Switch>
+              <Route path="/login" component={LoginPage} />
+              <Route>
+                <AppRoutes />
+              </Route>
+            </Switch>
+          </Suspense>
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
