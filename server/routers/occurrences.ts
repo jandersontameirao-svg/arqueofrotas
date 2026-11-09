@@ -197,8 +197,18 @@ export const occurrencesRouter = router({
         location: z.string().optional(),
         description: z.string().min(1, "Descrição é obrigatória"),
         severity: z.enum(SEVERITY_LEVELS),
-        photoData: z.string().optional(), // Base64
+        photoData: z.string().optional(), // Base64 (legado, foto única)
         photoFileName: z.string().optional(),
+        // Evidências fotográficas (até 5). Cada item é um data URL comprimido.
+        photos: z
+          .array(
+            z.object({
+              data: z.string(),
+              fileName: z.string().optional(),
+            })
+          )
+          .max(5)
+          .optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -219,7 +229,7 @@ export const occurrencesRouter = router({
         });
       }
 
-      const { photoData, photoFileName, ...occurrenceData } = input;
+      const { photoData, photoFileName, photos, ...occurrenceData } = input;
 
       const result = await db.insert(occurrences).values({
         ...occurrenceData,
@@ -228,14 +238,21 @@ export const occurrencesRouter = router({
       });
       const insertId = result[0].insertId;
 
-      // Upload photo if provided
-      if (photoData) {
+      // Persiste as evidências fotográficas. Aceita o campo legado (foto única)
+      // e o novo array `photos`. As fotos vão para o evidenceFiles (servidas em
+      // /api/evidence/:id), sem depender do storage S3 externo.
+      const photoList = [
+        ...(photoData ? [{ data: photoData, fileName: photoFileName }] : []),
+        ...(photos ?? []),
+      ].slice(0, 5);
+
+      for (const p of photoList) {
         const photo = await persistPhoto(
           db,
           ctx.user.id,
           input.vehicleId,
-          photoData,
-          photoFileName
+          p.data,
+          p.fileName
         );
 
         await db.insert(occurrenceAttachments).values({

@@ -70,19 +70,8 @@ export function OccurrenceFormPage() {
   const utils = trpc.useUtils();
 
   const createMutation = trpc.occurrences.create.useMutation({
-    onSuccess: async (data) => {
-      if (photos.length > 0) {
-        setIsUploading(true);
-        try {
-          toast.success("Ocorrência registrada com sucesso!");
-        } catch {
-          toast.warning("Ocorrência criada, mas houve erro ao enviar fotos");
-        } finally {
-          setIsUploading(false);
-        }
-      } else {
-        toast.success("Ocorrência registrada com sucesso!");
-      }
+    onSuccess: (data) => {
+      toast.success("Ocorrência registrada com sucesso!");
       utils.occurrences.list.invalidate();
       navigate(`/occurrences/${data.id}`);
     },
@@ -102,6 +91,39 @@ export function OccurrenceFormPage() {
       toast.error(error.message || "Erro ao atualizar ocorrência");
     },
   });
+
+  // Comprime a imagem (máx 1280px, JPEG q0.7) e devolve um data URL. Mantém o
+  // payload pequeno e no formato aceito pelo servidor (data:image/jpeg;base64).
+  const compressImage = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const maxDim = 1280;
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            const scale = maxDim / Math.max(width, height);
+            width = Math.round(width * scale);
+            height = Math.round(height * scale);
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("canvas"));
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", 0.7));
+        };
+        img.onerror = () => reject(new Error("image"));
+        img.src = reader.result as string;
+      };
+      reader.onerror = () => reject(new Error("read"));
+      reader.readAsDataURL(file);
+    });
 
   const handlePhotoAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -144,7 +166,7 @@ export function OccurrenceFormPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!validate()) return;
@@ -159,12 +181,31 @@ export function OccurrenceFormPage() {
         occurredAt: new Date(formData.occurredAt),
       });
     } else {
+      let compressedPhotos: { data: string; fileName?: string }[] = [];
+      if (photos.length > 0) {
+        setIsUploading(true);
+        try {
+          compressedPhotos = await Promise.all(
+            photos.map(async (file) => ({
+              data: await compressImage(file),
+              fileName: file.name,
+            }))
+          );
+        } catch {
+          toast.error("Erro ao processar as fotos. Tente novamente.");
+          setIsUploading(false);
+          return;
+        }
+        setIsUploading(false);
+      }
+
       createMutation.mutate({
         vehicleId: formData.vehicleId,
         severity: formData.severity,
         description: formData.description,
         location: formData.location || undefined,
         occurredAt: new Date(formData.occurredAt),
+        photos: compressedPhotos.length > 0 ? compressedPhotos : undefined,
       });
     }
   };
