@@ -914,7 +914,7 @@ export const vehicleFines = mysqlTable("vehicleFines", {
   vehicleId: int("vehicleId").notNull(),
   fineDate: timestamp("fineDate").notNull(),
   dueDate: timestamp("dueDate"),
-  autoInfracao: varchar("autoInfracao", { length: 50 }), // Número do auto de infração
+  autoInfracao: varchar("autoInfracao", { length: 255 }), // Número/descrição do auto de infração
   infraction: varchar("infraction", { length: 500 }).notNull(), // Descrição da infração
   location: varchar("location", { length: 500 }),
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),

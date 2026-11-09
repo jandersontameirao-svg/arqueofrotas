@@ -213,6 +213,7 @@ export function VehicleFineFormPage() {
                   value={autoInfracao}
                   onChange={(e) => setAutoInfracao(e.target.value)}
                   placeholder="Número do auto"
+                  maxLength={255}
                 />
               </div>
             </div>

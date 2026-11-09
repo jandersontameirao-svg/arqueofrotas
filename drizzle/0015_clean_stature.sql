@@ -1,0 +1,1 @@
+ALTER TABLE `vehicleFines` MODIFY COLUMN `autoInfracao` varchar(255);

@@ -106,6 +106,13 @@
       "when": 1793813772742,
       "tag": "0014_absurd_payback",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "5",
+      "when": 1794254760797,
+      "tag": "0015_clean_stature",
+      "breakpoints": true
     }
   ]
 }
