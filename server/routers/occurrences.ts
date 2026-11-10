@@ -14,6 +14,7 @@ import {
   vehicles,
   users,
   serviceOrders,
+  appNotifications,
 } from "../../drizzle/schema";
 import { createAuditLog, getRequestInfo } from "../audit";
 import { SEVERITY_LEVELS, OCCURRENCE_STATUSES } from "@shared/const";
@@ -283,6 +284,35 @@ export const occurrencesRouter = router({
             reason: "Ocorrência de alta severidade",
           },
           ...getRequestInfo(ctx.req),
+        });
+      }
+
+      // Notifica gestores e admins (painel do ArqueoFrotas) sobre a nova
+      // ocorrência — menos quem registrou. É o aviso que faltava.
+      const recipients = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            eq(users.active, true),
+            or(eq(users.role, "admin"), eq(users.role, "gestor_frota"))
+          )
+        );
+      const sevLabel =
+        input.severity === "alta"
+          ? "alta"
+          : input.severity === "media"
+            ? "média"
+            : "baixa";
+      for (const r of recipients) {
+        if (r.id === ctx.user.id) continue;
+        await db.insert(appNotifications).values({
+          userId: r.id,
+          type: "ocorrencia_nova",
+          title: `Nova ocorrência (${vehicle.plate})`,
+          message: `${ctx.user.name} registrou uma ocorrência de severidade ${sevLabel} no veículo ${vehicle.plate}.`,
+          entityType: "occurrence",
+          entityId: insertId,
         });
       }
 

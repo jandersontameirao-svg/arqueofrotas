@@ -24,13 +24,17 @@ export const userRoleEnum = mysqlEnum("role", [
   "manutencao",
 ]);
 
-export const vehicleTypeEnum = mysqlEnum("vehicleType", [
+const vehicleTypeValues = [
   "carro",
   "caminhonete",
   "moto",
   "van",
   "caminhao",
-]);
+] as const;
+// IMPORTANTE: um mysqlEnum é um builder mutável. Reutilizar a MESMA instância em
+// várias tabelas faz o `.notNull()` de uma vazar para as outras. Por isso cada
+// coluna vehicleType cria sua própria instância a partir de vehicleTypeValues.
+export const vehicleTypeEnum = mysqlEnum("vehicleType", vehicleTypeValues);
 
 export const vehicleStatusEnum = mysqlEnum("vehicleStatus", [
   "ativo",
@@ -234,7 +238,7 @@ export const checklistTemplates = mysqlTable("checklistTemplates", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
-  vehicleType: vehicleTypeEnum, // null = todos os tipos
+  vehicleType: mysqlEnum("vehicleType", vehicleTypeValues), // null = todos os tipos
   active: boolean("active").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -414,7 +418,7 @@ export const maintenancePlans = mysqlTable("maintenancePlans", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
-  vehicleType: vehicleTypeEnum, // null = todos os tipos
+  vehicleType: mysqlEnum("vehicleType", vehicleTypeValues), // null = todos os tipos
   vehicleId: int("vehicleId"), // null = todos os veículos do tipo
   intervalKm: int("intervalKm"), // Intervalo em km
   intervalDays: int("intervalDays"), // Intervalo em dias

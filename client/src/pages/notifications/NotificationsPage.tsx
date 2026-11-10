@@ -32,22 +32,26 @@ export function NotificationsPage() {
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case "os_aprovacao": return "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300";
+      case "os_pendente_aprovacao": return "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300";
       case "os_aprovada": return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
       case "os_rejeitada": return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300";
-      case "ocorrencia": return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300";
-      case "multa": return "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300";
+      case "ocorrencia_nova":
+      case "ocorrencia_atualizada": return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300";
+      case "multa_registrada": return "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300";
+      case "documento_vencendo": return "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300";
       default: return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
     }
   };
 
   const getTypeLabel = (type: string) => {
     switch (type) {
-      case "os_aprovacao": return "Aprovação de OS";
+      case "os_pendente_aprovacao": return "Aprovação de OS";
       case "os_aprovada": return "OS Aprovada";
       case "os_rejeitada": return "OS Rejeitada";
-      case "ocorrencia": return "Ocorrência";
-      case "multa": return "Multa";
+      case "ocorrencia_nova": return "Nova Ocorrência";
+      case "ocorrencia_atualizada": return "Ocorrência Atualizada";
+      case "multa_registrada": return "Multa";
+      case "documento_vencendo": return "Documento Vencendo";
       default: return "Notificação";
     }
   };
