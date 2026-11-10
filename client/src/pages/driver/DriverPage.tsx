@@ -544,6 +544,12 @@ export function DriverPage() {
                     </option>
                   ))}
                 </select>
+                {context && context.projects.length === 0 && (
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    Nenhum projeto disponível. Peça a um administrador para
+                    cadastrar projetos.
+                  </span>
+                )}
               </label>
               <label className="block">
                 Previsão de devolução
@@ -605,6 +611,12 @@ export function DriverPage() {
                     </option>
                   ))}
                 </select>
+                {context && templates.length === 0 && (
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    Nenhum modelo de inspeção disponível para este veículo. Peça
+                    a um administrador para cadastrar um template de checklist.
+                  </span>
+                )}
               </label>
               <p>
                 Inspecione fisicamente cada item. Nenhuma resposta é preenchida

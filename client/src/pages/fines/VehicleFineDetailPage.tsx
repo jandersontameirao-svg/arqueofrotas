@@ -32,7 +32,7 @@ export function VehicleFineDetailPage() {
   const { data: fine, isLoading } = trpc.vehicleFines.getById.useQuery({ id: fineId });
 
   const { data: vehiclesList } = trpc.vehicles.list.useQuery();
-  const { data: usersList } = trpc.users.list.useQuery();
+  const { data: usersList } = trpc.users.listActive.useQuery();
 
   const utils = trpc.useUtils();
 

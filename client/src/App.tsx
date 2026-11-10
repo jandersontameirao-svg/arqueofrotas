@@ -38,6 +38,7 @@ import { VehicleFineFormPage } from "@/pages/fines/VehicleFineFormPage";
 import { VehicleFineDetailPage } from "@/pages/fines/VehicleFineDetailPage";
 import { VehicleAIPage } from "@/pages/vehicles/VehicleAIPage";
 import { NotificationsPage } from "@/pages/notifications/NotificationsPage";
+import { ProjectsPage } from "@/pages/projects/ProjectsPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth({
@@ -161,6 +162,13 @@ function AppRoutes() {
           <Route path="/users/:id/edit">
             <AdminRoute>
               <UserFormPage />
+            </AdminRoute>
+          </Route>
+
+          {/* Projects - Admin only */}
+          <Route path="/projects">
+            <AdminRoute>
+              <ProjectsPage />
             </AdminRoute>
           </Route>
 

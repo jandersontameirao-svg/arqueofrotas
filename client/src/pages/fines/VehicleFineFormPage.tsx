@@ -35,7 +35,7 @@ export function VehicleFineFormPage() {
   const [observations, setObservations] = useState("");
 
   const { data: vehiclesList } = trpc.vehicles.list.useQuery();
-  const { data: usersList } = trpc.users.list.useQuery();
+  const { data: usersList } = trpc.users.listActive.useQuery();
   const { data: existingFine, isLoading: loadingFine } = trpc.vehicleFines.getById.useQuery(
     { id: fineId! },
     { enabled: isEditing && !!fineId }

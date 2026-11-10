@@ -251,6 +251,18 @@ export function ChecklistExecutePage() {
                   ))}
                 </SelectContent>
               </Select>
+              {templates && templates.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Nenhum template de checklist cadastrado.{" "}
+                  <a
+                    href="/checklist-templates/new"
+                    className="text-primary underline underline-offset-2"
+                  >
+                    Cadastre um template
+                  </a>{" "}
+                  para habilitar os checklists.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

@@ -37,6 +37,7 @@ import {
   Receipt,
   Bell,
   Bot,
+  FolderKanban,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -64,6 +65,7 @@ const adminMenuItems = [
     label: "Templates Checklist",
     path: "/checklist-templates",
   },
+  { icon: FolderKanban, label: "Projetos", path: "/projects" },
   { icon: Users, label: "Usuários", path: "/users" },
   { icon: FileText, label: "Auditoria", path: "/audit" },
 ];

@@ -35,7 +35,8 @@ export function VehicleFinesPage() {
   const [search, setSearch] = useState("");
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
-  const { data: fines, isLoading } = trpc.vehicleFines.listAll.useQuery();
+  const { data: fines, isLoading, isError, error } =
+    trpc.vehicleFines.listAll.useQuery();
 
   const utils = trpc.useUtils();
 
@@ -111,6 +112,16 @@ export function VehicleFinesPage() {
         <div className="flex items-center justify-center min-h-[200px]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
+      ) : isError ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Receipt className="h-12 w-12 text-destructive mb-4" />
+            <p className="text-lg font-medium">Erro ao carregar multas</p>
+            <p className="text-sm text-muted-foreground">
+              {error?.message || "Tente novamente mais tarde"}
+            </p>
+          </CardContent>
+        </Card>
       ) : filtered && filtered.length > 0 ? (
         <div className="space-y-3">
           {filtered.map((fine) => (

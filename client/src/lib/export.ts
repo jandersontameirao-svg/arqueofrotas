@@ -146,11 +146,13 @@ export async function exportToPDF<T extends Record<string, unknown>>(
     body: tableData,
     startY: 42,
     margin: { left: margin, right: margin },
+    tableWidth: "auto",
     styles: {
       fontSize: 9,
       cellPadding: 3,
       lineColor: [200, 200, 200],
       lineWidth: 0.1,
+      overflow: "linebreak",
     },
     headStyles: {
       fillColor: primaryColor,
@@ -161,15 +163,26 @@ export async function exportToPDF<T extends Record<string, unknown>>(
     alternateRowStyles: {
       fillColor: [250, 250, 250],
     },
-    columnStyles: columns.reduce(
-      (acc, col, index) => {
-        if (col.width) {
-          acc[index] = { cellWidth: col.width };
-        }
-        return acc;
-      },
-      {} as Record<number, { cellWidth: number }>
-    ),
+    columnStyles: (() => {
+      // Escala as larguras fixas informadas para que a soma nunca ultrapasse a
+      // largura útil da página. Evita o aviso do jsPDF-autotable
+      // ("units width could not fit page") preservando as proporções.
+      const usableWidth = pageWidth - margin * 2;
+      const totalFixed = columns.reduce((sum, col) => sum + (col.width ?? 0), 0);
+      const scale =
+        totalFixed > usableWidth && totalFixed > 0
+          ? usableWidth / totalFixed
+          : 1;
+      return columns.reduce(
+        (acc, col, index) => {
+          if (col.width) {
+            acc[index] = { cellWidth: col.width * scale };
+          }
+          return acc;
+        },
+        {} as Record<number, { cellWidth: number }>
+      );
+    })(),
     didDrawPage: data => {
       // Footer em todas as páginas
       const pageNumber = doc.getCurrentPageInfo().pageNumber;
