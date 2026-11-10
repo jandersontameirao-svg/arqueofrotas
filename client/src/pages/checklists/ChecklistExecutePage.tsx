@@ -62,10 +62,13 @@ export function ChecklistExecutePage() {
   const [templateId, setTemplateId] = useState<number>(0);
   const [km, setKm] = useState<string>("");
   const [currentItemIndex, setCurrentItemIndex] = useState(0);
-  const [responses, setResponses] = useState<Map<number, ChecklistResponse>>(
-    new Map()
-  );
-  const [currentPhoto, setCurrentPhoto] = useState<string | null>(null);
+  const [responses, setResponses] = useState<
+    Map<number, "ok" | "nao_ok" | "na">
+  >(new Map());
+  const [comments, setComments] = useState<Map<number, string>>(new Map());
+  const [photos, setPhotos] = useState<
+    Map<number, { data: string; fileName: string }>
+  >(new Map());
   const [observations, setObservations] = useState("");
 
   const { data: vehicles } = trpc.vehicles.list.useQuery({});
@@ -93,50 +96,43 @@ export function ChecklistExecutePage() {
   const selectedTemplate = templates?.find(t => t.id === templateId);
   const items = templateItems;
   const currentItem = items[currentItemIndex];
+  const currentPhoto = currentItem
+    ? (photos.get(currentItem.id)?.data ?? null)
+    : null;
 
   const progress = items.length > 0 ? (responses.size / items.length) * 100 : 0;
-  const hasIssues = Array.from(responses.values()).some(
-    r => r.response === "nao_ok"
-  );
+  const hasIssues = Array.from(responses.values()).some(r => r === "nao_ok");
 
   const handleResponse = (response: "ok" | "nao_ok" | "na") => {
     if (!currentItem) return;
 
-    setResponses(prev => {
-      const newMap = new Map(prev);
-      newMap.set(currentItem.id, {
-        templateItemId: currentItem.id,
-        response,
-        comment: prev.get(currentItem.id)?.comment,
-        photoData: currentPhoto ?? prev.get(currentItem.id)?.photoData,
-        photoFileName: prev.get(currentItem.id)?.photoFileName ?? "foto.jpg",
-      });
-      return newMap;
-    });
+    setResponses(prev => new Map(prev).set(currentItem.id, response));
 
     // Auto-advance to next item
     if (response !== "nao_ok" && currentItemIndex < items.length - 1) {
       setTimeout(() => {
         setCurrentItemIndex(prev => prev + 1);
-        setCurrentPhoto(null);
       }, 300);
     }
   };
 
   const handleObservation = (comment: string) => {
     if (!currentItem) return;
+    setComments(prev => new Map(prev).set(currentItem.id, comment));
+  };
 
-    setResponses(prev => {
-      const newMap = new Map(prev);
-      const existing = prev.get(currentItem.id);
-      if (existing) {
-        newMap.set(currentItem.id, { ...existing, comment });
-      }
-      return newMap;
+  const handleRemovePhoto = () => {
+    if (!currentItem) return;
+    setPhotos(prev => {
+      const updated = new Map(prev);
+      updated.delete(currentItem.id);
+      return updated;
     });
   };
 
   const handlePhotoCapture = () => {
+    if (!currentItem) return;
+    const item = currentItem;
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
@@ -145,21 +141,11 @@ export function ChecklistExecutePage() {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
         const reader = new FileReader();
-        reader.onload = e => {
-          const data = e.target?.result as string;
-          setCurrentPhoto(data);
-          if (currentItem)
-            setResponses(prev => {
-              const existing = prev.get(currentItem.id);
-              if (!existing) return prev;
-              const updated = new Map(prev);
-              updated.set(currentItem.id, {
-                ...existing,
-                photoData: data,
-                photoFileName: file.name,
-              });
-              return updated;
-            });
+        reader.onload = ev => {
+          const data = ev.target?.result as string;
+          setPhotos(prev =>
+            new Map(prev).set(item.id, { data, fileName: file.name })
+          );
         };
         reader.readAsDataURL(file);
       }
@@ -185,7 +171,13 @@ export function ChecklistExecutePage() {
       templateId,
       km: km ? Number(km) : undefined,
       observations: observations || undefined,
-      responses: Array.from(responses.values()),
+      responses: items.map((item: { id: number }) => ({
+        templateItemId: item.id,
+        response: responses.get(item.id)!,
+        comment: comments.get(item.id) || undefined,
+        photoData: photos.get(item.id)?.data,
+        photoFileName: photos.get(item.id)?.fileName,
+      })),
     });
   };
 
@@ -333,7 +325,7 @@ export function ChecklistExecutePage() {
                   size="lg"
                   className={cn(
                     "flex-col h-20 gap-1",
-                    responses.get(currentItem.id)?.response === "ok" &&
+                    responses.get(currentItem.id) === "ok" &&
                       "border-green-500 bg-green-50 dark:bg-green-950/30"
                   )}
                   onClick={() => handleResponse("ok")}
@@ -346,7 +338,7 @@ export function ChecklistExecutePage() {
                   size="lg"
                   className={cn(
                     "flex-col h-20 gap-1",
-                    responses.get(currentItem.id)?.response === "nao_ok" &&
+                    responses.get(currentItem.id) === "nao_ok" &&
                       "border-red-500 bg-red-50 dark:bg-red-950/30"
                   )}
                   onClick={() => handleResponse("nao_ok")}
@@ -359,7 +351,7 @@ export function ChecklistExecutePage() {
                   size="lg"
                   className={cn(
                     "flex-col h-20 gap-1",
-                    responses.get(currentItem.id)?.response === "na" &&
+                    responses.get(currentItem.id) === "na" &&
                       "border-gray-500 bg-gray-50 dark:bg-gray-950/30"
                   )}
                   onClick={() => handleResponse("na")}
@@ -371,7 +363,7 @@ export function ChecklistExecutePage() {
 
               {/* Photo capture */}
               {(currentItem.isCritical ||
-                responses.get(currentItem.id)?.response === "nao_ok") && (
+                responses.get(currentItem.id) === "nao_ok") && (
                 <div className="space-y-2">
                   <Label>Foto (obrigatória para Não OK)</Label>
                   {currentPhoto ? (
@@ -385,7 +377,7 @@ export function ChecklistExecutePage() {
                         variant="destructive"
                         size="icon"
                         className="absolute top-2 right-2"
-                        onClick={() => setCurrentPhoto(null)}
+                        onClick={handleRemovePhoto}
                       >
                         <X className="h-4 w-4" />
                       </Button>
@@ -407,7 +399,7 @@ export function ChecklistExecutePage() {
               <div className="space-y-2">
                 <Label>Observação</Label>
                 <Textarea
-                  value={responses.get(currentItem.id)?.comment ?? ""}
+                  value={comments.get(currentItem.id) ?? ""}
                   onChange={e => handleObservation(e.target.value)}
                   placeholder="Adicione uma observação se necessário..."
                   rows={2}
@@ -488,9 +480,8 @@ export function ChecklistExecutePage() {
             <div>
               <p className="text-2xl font-bold text-green-600">
                 {
-                  Array.from(responses.values()).filter(
-                    r => r.response === "ok"
-                  ).length
+                  Array.from(responses.values()).filter(r => r === "ok")
+                    .length
                 }
               </p>
               <p className="text-xs text-muted-foreground">OK</p>
@@ -498,9 +489,8 @@ export function ChecklistExecutePage() {
             <div>
               <p className="text-2xl font-bold text-red-600">
                 {
-                  Array.from(responses.values()).filter(
-                    r => r.response === "nao_ok"
-                  ).length
+                  Array.from(responses.values()).filter(r => r === "nao_ok")
+                    .length
                 }
               </p>
               <p className="text-xs text-muted-foreground">Não OK</p>
@@ -508,9 +498,8 @@ export function ChecklistExecutePage() {
             <div>
               <p className="text-2xl font-bold text-gray-600">
                 {
-                  Array.from(responses.values()).filter(
-                    r => r.response === "na"
-                  ).length
+                  Array.from(responses.values()).filter(r => r === "na")
+                    .length
                 }
               </p>
               <p className="text-xs text-muted-foreground">N/A</p>
@@ -529,7 +518,7 @@ export function ChecklistExecutePage() {
             {items
               .filter(
                 (item: { id: number; description: string }) =>
-                  responses.get(item.id)?.response === "nao_ok"
+                  responses.get(item.id) === "nao_ok"
               )
               .map((item: { id: number; description: string }) => (
                 <div
@@ -537,9 +526,9 @@ export function ChecklistExecutePage() {
                   className="p-3 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200"
                 >
                   <p className="font-medium text-sm">{item.description}</p>
-                  {responses.get(item.id)?.comment && (
+                  {comments.get(item.id) && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      {responses.get(item.id)?.comment}
+                      {comments.get(item.id)}
                     </p>
                   )}
                 </div>
