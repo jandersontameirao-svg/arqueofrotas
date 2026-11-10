@@ -23,6 +23,8 @@ import { storagePut } from "../storage";
 
 import { persistPhoto } from "../domain/evidence";
 import { reconcileVehicle } from "../domain/eligibility";
+import { sendMail } from "../mailer";
+import { ENV } from "../_core/env";
 
 export const occurrencesRouter = router({
   list: protectedProcedure
@@ -290,7 +292,7 @@ export const occurrencesRouter = router({
       // Notifica gestores e admins (painel do ArqueoFrotas) sobre a nova
       // ocorrência — menos quem registrou. É o aviso que faltava.
       const recipients = await db
-        .select({ id: users.id })
+        .select({ id: users.id, email: users.email })
         .from(users)
         .where(
           and(
@@ -304,6 +306,7 @@ export const occurrencesRouter = router({
           : input.severity === "media"
             ? "média"
             : "baixa";
+      const emailTo: string[] = [];
       for (const r of recipients) {
         if (r.id === ctx.user.id) continue;
         await db.insert(appNotifications).values({
@@ -313,6 +316,27 @@ export const occurrencesRouter = router({
           message: `${ctx.user.name} registrou uma ocorrência de severidade ${sevLabel} no veículo ${vehicle.plate}.`,
           entityType: "occurrence",
           entityId: insertId,
+        });
+        if (r.email) emailTo.push(r.email);
+      }
+
+      // Aviso por email (best-effort, não bloqueia nem falha a criação).
+      if (emailTo.length > 0) {
+        const link = `${ENV.appBaseUrl}/occurrences/${insertId}`;
+        const descricao = occurrenceData.description.slice(0, 500);
+        void sendMail({
+          to: emailTo,
+          subject: `Nova ocorrência (${vehicle.plate}) — severidade ${sevLabel}`,
+          text:
+            `${ctx.user.name} registrou uma nova ocorrência.\n\n` +
+            `Veículo: ${vehicle.plate}\nSeveridade: ${sevLabel}\n` +
+            `Descrição: ${descricao}\n\nAbrir: ${link}`,
+          html:
+            `<p><strong>${ctx.user.name}</strong> registrou uma nova ocorrência.</p>` +
+            `<p><strong>Veículo:</strong> ${vehicle.plate}<br>` +
+            `<strong>Severidade:</strong> ${sevLabel}</p>` +
+            `<p><strong>Descrição:</strong><br>${descricao.replace(/</g, "&lt;")}</p>` +
+            `<p><a href="${link}">Abrir ocorrência no ArqueoFrotas</a></p>`,
         });
       }
 

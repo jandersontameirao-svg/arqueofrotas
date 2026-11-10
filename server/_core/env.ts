@@ -12,4 +12,13 @@ export const ENV = {
   openaiBaseUrl:
     process.env.OPENAI_BASE_URL ?? process.env.BUILT_IN_FORGE_API_URL ?? "https://api.openai.com",
   openaiModel: process.env.OPENAI_MODEL ?? "gpt-6-luna",
+  // SMTP para envio de emails (notificações). Se SMTP_HOST estiver vazio, o
+  // envio é desativado silenciosamente (o painel continua funcionando).
+  smtpHost: process.env.SMTP_HOST ?? "",
+  smtpPort: Number(process.env.SMTP_PORT ?? "587"),
+  smtpSecure: process.env.SMTP_SECURE === "true", // true = porta 465 (SSL)
+  smtpUser: process.env.SMTP_USER ?? "",
+  smtpPass: process.env.SMTP_PASS ?? "",
+  smtpFrom: process.env.SMTP_FROM ?? "ArqueoFrotas <no-reply@arqueofrotas.sigpa.com.br>",
+  appBaseUrl: process.env.APP_BASE_URL ?? "https://arqueofrotas.sigpa.com.br",
 };
