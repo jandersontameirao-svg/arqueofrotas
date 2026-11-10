@@ -12,13 +12,20 @@ export const ENV = {
   openaiBaseUrl:
     process.env.OPENAI_BASE_URL ?? process.env.BUILT_IN_FORGE_API_URL ?? "https://api.openai.com",
   openaiModel: process.env.OPENAI_MODEL ?? "gpt-6-luna",
-  // SMTP para envio de emails (notificações). Se SMTP_HOST estiver vazio, o
-  // envio é desativado silenciosamente (o painel continua funcionando).
+  // Envio de emails (notificações). Ordem de preferência no mailer:
+  // 1) Resend API (RESEND_API_KEY)  2) SMTP (SMTP_HOST)  3) desativado.
+  // Se nada estiver configurado, o envio é ignorado e só o painel funciona.
+  resendApiKey: process.env.RESEND_API_KEY ?? "",
   smtpHost: process.env.SMTP_HOST ?? "",
   smtpPort: Number(process.env.SMTP_PORT ?? "587"),
   smtpSecure: process.env.SMTP_SECURE === "true", // true = porta 465 (SSL)
   smtpUser: process.env.SMTP_USER ?? "",
   smtpPass: process.env.SMTP_PASS ?? "",
-  smtpFrom: process.env.SMTP_FROM ?? "ArqueoFrotas <no-reply@arqueofrotas.sigpa.com.br>",
+  // Remetente usado pelos dois caminhos. No Resend, precisa ser de um domínio
+  // verificado (ou onboarding@resend.dev para teste).
+  mailFrom:
+    process.env.MAIL_FROM ??
+    process.env.SMTP_FROM ??
+    "ArqueoFrotas <onboarding@resend.dev>",
   appBaseUrl: process.env.APP_BASE_URL ?? "https://arqueofrotas.sigpa.com.br",
 };

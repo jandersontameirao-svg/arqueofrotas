@@ -113,10 +113,11 @@ Preencha:
 
 - `VITE_APP_ID=arqueofrotas` (pode deixar como está)
 - `PORT=8001`, `HOST=127.0.0.1`, `NODE_ENV=production` (já vêm prontos)
-- **Email (opcional):** preencha `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`,
-  `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` para ativar avisos por email (ex.: nova
-  ocorrência). Se `SMTP_HOST` ficar vazio, o email é desativado e só o painel de
-  notificações funciona — nada quebra.
+- **Email (opcional):** para ativar avisos por email (ex.: nova ocorrência),
+  use o **Resend** (recomendado): preencha `RESEND_API_KEY` e `MAIL_FROM` (de um
+  domínio verificado no Resend). Alternativa SMTP: `SMTP_HOST`, `SMTP_PORT`,
+  `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`. Se nada for preenchido, o
+  email é desativado e só o painel de notificações funciona — nada quebra.
 
 > ⚠️ Importante: `VITE_APP_ID` é embutido no bundle durante o build, então o
 > `.env` precisa existir **antes** do passo 6.
