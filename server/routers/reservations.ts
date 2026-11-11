@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, or, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure, gestorProcedure } from "../_core/trpc";
 import { getDb } from "../db";
@@ -12,7 +12,10 @@ import {
   occurrenceAttachments,
   activeVehicleUses,
   checklists,
+  appNotifications,
 } from "../../drizzle/schema";
+import { sendMail } from "../mailer";
+import { ENV } from "../_core/env";
 import {
   vehicleEligibility,
   validateInterval,
@@ -401,5 +404,78 @@ async function report(
       .update(vehicles)
       .set({ status: "manutencao" })
       .where(and(eq(vehicles.id, vehicleId), eq(vehicles.status, "ativo")));
+  await notifyNewOccurrence(db, id, vehicleId, userId, input);
   return { id, status: "aberto" as const, receivedAt: new Date() };
+}
+
+// Avisa gestores/admins (painel + email) sobre a ocorrência aberta pelo fluxo
+// de devolução/relato. Mesmo aviso que o router de ocorrências já faz — faltava
+// aqui. Best-effort: nunca derruba nem falha o fluxo principal.
+async function notifyNewOccurrence(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  occurrenceId: number,
+  vehicleId: number,
+  reporterId: number,
+  input: z.infer<typeof problem>
+) {
+  try {
+    const [veh] = await db
+      .select({ plate: vehicles.plate })
+      .from(vehicles)
+      .where(eq(vehicles.id, vehicleId));
+    const [reporter] = await db
+      .select({ name: users.name })
+      .from(users)
+      .where(eq(users.id, reporterId));
+    const plate = veh?.plate ?? "veículo";
+    const quem = reporter?.name ?? "Um condutor";
+    const sevLabel =
+      input.severity === "alta"
+        ? "alta"
+        : input.severity === "media"
+          ? "média"
+          : "baixa";
+    const recipients = await db
+      .select({ id: users.id, email: users.email })
+      .from(users)
+      .where(
+        and(
+          eq(users.active, true),
+          or(eq(users.role, "admin"), eq(users.role, "gestor_frota"))
+        )
+      );
+    const emailTo: string[] = [];
+    for (const r of recipients) {
+      if (r.id === reporterId) continue;
+      await db.insert(appNotifications).values({
+        userId: r.id,
+        type: "ocorrencia_nova",
+        title: `Nova ocorrência (${plate})`,
+        message: `${quem} registrou uma ocorrência de severidade ${sevLabel} no veículo ${plate}.`,
+        entityType: "occurrence",
+        entityId: occurrenceId,
+      });
+      if (r.email) emailTo.push(r.email);
+    }
+    if (emailTo.length > 0) {
+      const link = `${ENV.appBaseUrl}/occurrences/${occurrenceId}`;
+      const descricao = input.description.slice(0, 500);
+      void sendMail({
+        to: emailTo,
+        subject: `Nova ocorrência (${plate}) — severidade ${sevLabel}`,
+        text:
+          `${quem} registrou uma nova ocorrência.\n\n` +
+          `Veículo: ${plate}\nSeveridade: ${sevLabel}\n` +
+          `Descrição: ${descricao}\n\nAbrir: ${link}`,
+        html:
+          `<p><strong>${quem}</strong> registrou uma nova ocorrência.</p>` +
+          `<p><strong>Veículo:</strong> ${plate}<br>` +
+          `<strong>Severidade:</strong> ${sevLabel}</p>` +
+          `<p><strong>Descrição:</strong><br>${descricao.replace(/</g, "&lt;")}</p>` +
+          `<p><a href="${link}">Abrir ocorrência no ArqueoFrotas</a></p>`,
+      });
+    }
+  } catch (error) {
+    console.error("[reservations] Falha ao notificar nova ocorrência:", error);
+  }
 }

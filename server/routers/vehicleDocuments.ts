@@ -197,6 +197,22 @@ export const vehicleDocumentsRouter = router({
         (updateData as Record<string, unknown>).fileSize = buffer.length;
       }
 
+      // Documento renovado (nova data de vencimento) reinicia os avisos de
+      // vencimento, senão o lembrete de 30/15/7 dias nunca dispara de novo.
+      if (input.expirationDate !== undefined) {
+        const antes = previous?.expirationDate
+          ? previous.expirationDate.getTime()
+          : null;
+        const agora = input.expirationDate
+          ? input.expirationDate.getTime()
+          : null;
+        if (antes !== agora) {
+          (updateData as Record<string, unknown>).alert30Sent = false;
+          (updateData as Record<string, unknown>).alert15Sent = false;
+          (updateData as Record<string, unknown>).alert7Sent = false;
+        }
+      }
+
       await db
         .update(vehicleDocuments)
         .set(updateData)
