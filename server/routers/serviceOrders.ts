@@ -26,6 +26,8 @@ import {
 } from "@shared/const";
 import { TRPCError } from "@trpc/server";
 import { storagePut } from "../storage";
+import { sendMail } from "../mailer";
+import { ENV } from "../_core/env";
 
 import { randomUUID } from "node:crypto";
 import { reconcileVehicle } from "../domain/eligibility";
@@ -812,7 +814,7 @@ export const serviceOrdersRouter = router({
 
       // Notify all gestores and admins
       const gestores = await db
-        .select({ id: users.id })
+        .select({ id: users.id, email: users.email })
         .from(users)
         .where(
           and(
@@ -821,6 +823,7 @@ export const serviceOrdersRouter = router({
           )
         );
 
+      const emailGestores: string[] = [];
       for (const gestor of gestores) {
         if (gestor.id !== ctx.user.id) {
           await db.insert(appNotifications).values({
@@ -831,7 +834,21 @@ export const serviceOrdersRouter = router({
             entityType: "service_order",
             entityId: input.id,
           });
+          if (gestor.email) emailGestores.push(gestor.email);
         }
+      }
+      if (emailGestores.length > 0) {
+        const link = `${ENV.appBaseUrl}/service-orders/${input.id}`;
+        void sendMail({
+          to: emailGestores,
+          subject: `OS ${so.osCode} aguarda aprovação`,
+          text:
+            `${ctx.user.name} enviou a OS ${so.osCode} para aprovação.\n\n` +
+            `Abrir: ${link}`,
+          html:
+            `<p><strong>${ctx.user.name}</strong> enviou a OS <strong>${so.osCode}</strong> para aprovação.</p>` +
+            `<p><a href="${link}">Abrir no ArqueoFrotas</a></p>`,
+        });
       }
 
       await createAuditLog({
@@ -906,6 +923,14 @@ export const serviceOrdersRouter = router({
           entityType: "service_order",
           entityId: input.id,
         });
+        void emailOsOpener(
+          db,
+          so.openedById,
+          `OS ${so.osCode} foi aprovada`,
+          `Sua OS ${so.osCode} foi aprovada por ${ctx.user.name}.${input.notes ? `\n\nObs: ${input.notes}` : ""}`,
+          `<p>Sua OS <strong>${so.osCode}</strong> foi aprovada por ${ctx.user.name}.</p>${input.notes ? `<p><strong>Obs:</strong> ${input.notes}</p>` : ""}`,
+          input.id
+        );
       }
 
       await createAuditLog({
@@ -984,6 +1009,14 @@ export const serviceOrdersRouter = router({
           entityType: "service_order",
           entityId: input.id,
         });
+        void emailOsOpener(
+          db,
+          so.openedById,
+          `OS ${so.osCode} foi rejeitada`,
+          `Sua OS ${so.osCode} foi rejeitada por ${ctx.user.name}.\n\nMotivo: ${input.notes}`,
+          `<p>Sua OS <strong>${so.osCode}</strong> foi rejeitada por ${ctx.user.name}.</p><p><strong>Motivo:</strong> ${input.notes}</p>`,
+          input.id
+        );
       }
 
       await createAuditLog({
@@ -1080,3 +1113,31 @@ export const serviceOrdersRouter = router({
     };
   }),
 });
+
+// Aviso por email para quem abriu a OS (aprovação/rejeição). Best-effort:
+// nunca derruba nem falha a mutation. O painel já recebe a notificação.
+async function emailOsOpener(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  openedById: number,
+  subject: string,
+  text: string,
+  htmlBody: string,
+  serviceOrderId: number
+) {
+  try {
+    const [u] = await db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, openedById));
+    if (!u?.email) return;
+    const link = `${ENV.appBaseUrl}/service-orders/${serviceOrderId}`;
+    void sendMail({
+      to: u.email,
+      subject,
+      text: `${text}\n\nAbrir: ${link}`,
+      html: `${htmlBody}<p><a href="${link}">Abrir no ArqueoFrotas</a></p>`,
+    });
+  } catch (error) {
+    console.error("[serviceOrders] Falha ao enviar email ao autor da OS:", error);
+  }
+}
