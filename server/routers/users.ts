@@ -10,6 +10,7 @@ import { getDb } from "../db";
 import { users, units } from "../../drizzle/schema";
 import { createAuditLog, getRequestInfo } from "../audit";
 import { USER_ROLES } from "@shared/const";
+import { hashPassword, verifyPassword } from "../_core/password";
 
 export const usersRouter = router({
   list: adminProcedure.query(async ({ ctx }) => {
@@ -47,6 +48,7 @@ export const usersRouter = router({
         unitId: z.number().nullable().optional(),
         phone: z.string().optional(),
         openId: z.string().optional(),
+        password: z.string().min(8, "A senha deve ter ao menos 8 caracteres").optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -70,10 +72,16 @@ export const usersRouter = router({
         }
       }
 
+      const passwordHash = input.password
+        ? await hashPassword(input.password)
+        : null;
+
       const result = await db.insert(users).values({
         openId,
         name: input.name,
         email: input.email,
+        passwordHash,
+        loginMethod: passwordHash ? "local" : null,
         role: input.role,
         unitId: input.unitId ?? null,
         phone: input.phone,
@@ -233,6 +241,78 @@ export const usersRouter = router({
         entityType: "user",
         entityId: input.id,
         previousData: previous as Record<string, unknown>,
+        ...getRequestInfo(ctx.req),
+      });
+
+      return { success: true };
+    }),
+
+  // Admin: set/reset another user's password
+  resetPassword: adminProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        password: z.string().min(8, "A senha deve ter ao menos 8 caracteres"),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      const passwordHash = await hashPassword(input.password);
+      await db
+        .update(users)
+        .set({ passwordHash, loginMethod: "local" })
+        .where(eq(users.id, input.id));
+
+      await createAuditLog({
+        user: ctx.user,
+        action: "UPDATE",
+        entityType: "user",
+        entityId: input.id,
+        newData: { passwordReset: true } as Record<string, unknown>,
+        ...getRequestInfo(ctx.req),
+      });
+
+      return { success: true };
+    }),
+
+  // Self: change own password (requires current password)
+  changePassword: protectedProcedure
+    .input(
+      z.object({
+        currentPassword: z.string().min(1),
+        newPassword: z.string().min(8, "A senha deve ter ao menos 8 caracteres"),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      const [current] = await db
+        .select({ passwordHash: users.passwordHash })
+        .from(users)
+        .where(eq(users.id, ctx.user.id))
+        .limit(1);
+
+      // If the account already has a password, the current one must match.
+      if (current?.passwordHash) {
+        const ok = await verifyPassword(input.currentPassword, current.passwordHash);
+        if (!ok) throw new Error("Senha atual incorreta");
+      }
+
+      const passwordHash = await hashPassword(input.newPassword);
+      await db
+        .update(users)
+        .set({ passwordHash, loginMethod: "local" })
+        .where(eq(users.id, ctx.user.id));
+
+      await createAuditLog({
+        user: ctx.user,
+        action: "UPDATE",
+        entityType: "user",
+        entityId: ctx.user.id,
+        newData: { passwordChanged: true } as Record<string, unknown>,
         ...getRequestInfo(ctx.req),
       });
 

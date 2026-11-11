@@ -38,6 +38,7 @@ import {
   Bell,
   Bot,
   FolderKanban,
+  MessageSquarePlus,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -57,6 +58,8 @@ const menuItems = [
   { icon: Wrench, label: "Ordens de Serviço", path: "/service-orders" },
   { icon: Building2, label: "Prestadores", path: "/service-providers" },
   { icon: Receipt, label: "Multas", path: "/fines" },
+  { icon: Bot, label: "Atena (IA)", path: "/atena" },
+  { icon: MessageSquarePlus, label: "Observações", path: "/observacoes" },
 ];
 
 const adminMenuItems = [

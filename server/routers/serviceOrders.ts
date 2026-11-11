@@ -221,11 +221,23 @@ export const serviceOrdersRouter = router({
         assignedToId: z.number().optional(),
         supplierName: z.string().optional(),
         supplierContact: z.string().optional(),
+        items: z
+          .array(
+            z.object({
+              description: z.string().min(1),
+              quantity: z.number().positive().default(1),
+              unitPrice: z.number().min(0).default(0),
+            })
+          )
+          .max(50)
+          .optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
+
+      const { items, ...osInput } = input;
 
       // Get vehicle current km
       const [vehicle] = await db
@@ -291,13 +303,28 @@ export const serviceOrdersRouter = router({
       const osCode = `OS-${randomUUID().replace(/-/g, "").slice(0, 16).toUpperCase()}`;
 
       const result = await db.insert(serviceOrders).values({
-        ...input,
+        ...osInput,
         osCode,
         status: "aberta",
         openedById: ctx.user.id,
         kmAtOpen: vehicle.currentKm,
       });
       const insertId = result[0].insertId;
+
+      // Insere os itens do serviço informados na abertura da OS
+      const validItems = (items ?? []).filter((it) => it.description.trim());
+      if (validItems.length > 0) {
+        await db.insert(serviceOrderItems).values(
+          validItems.map((it) => ({
+            serviceOrderId: insertId,
+            itemType: "peca" as const,
+            description: it.description.trim(),
+            quantity: String(it.quantity),
+            unitPrice: it.unitPrice.toFixed(2),
+            totalPrice: (it.quantity * it.unitPrice).toFixed(2),
+          }))
+        );
+      }
 
       // Set vehicle to maintenance if not already
       if (vehicle.status !== "manutencao") {

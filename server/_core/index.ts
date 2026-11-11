@@ -5,6 +5,7 @@ import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
+import { registerLocalAuthRoutes } from "./localAuth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -34,8 +35,10 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
-  // OAuth callback under /api/oauth/callback
+  // OAuth callback under /api/oauth/callback (legacy; kept for compatibility)
   registerOAuthRoutes(app);
+  // Local e-mail + password authentication under /api/auth/login
+  registerLocalAuthRoutes(app);
   registerEvidenceRoute(app);
   // tRPC API
   app.use(
@@ -53,14 +56,24 @@ async function startServer() {
   }
 
   const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
+  // In production, bind to a fixed port/host (behind nginx). In development,
+  // auto-discover a free port for convenience.
+  const port =
+    process.env.NODE_ENV === "production"
+      ? preferredPort
+      : await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
-  server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+  // HOST defaults to 127.0.0.1 in production (proxied by nginx); dev listens on all.
+  const host =
+    process.env.HOST ||
+    (process.env.NODE_ENV === "production" ? "127.0.0.1" : "0.0.0.0");
+
+  server.listen(port, host, () => {
+    console.log(`Server running on http://${host}:${port}/`);
   });
 }
 

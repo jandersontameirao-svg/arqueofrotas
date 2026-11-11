@@ -14,6 +14,7 @@ import {
   vehicles,
   users,
   serviceOrders,
+  appNotifications,
 } from "../../drizzle/schema";
 import { createAuditLog, getRequestInfo } from "../audit";
 import { SEVERITY_LEVELS, OCCURRENCE_STATUSES } from "@shared/const";
@@ -22,6 +23,8 @@ import { storagePut } from "../storage";
 
 import { persistPhoto } from "../domain/evidence";
 import { reconcileVehicle } from "../domain/eligibility";
+import { sendMail } from "../mailer";
+import { ENV } from "../_core/env";
 
 export const occurrencesRouter = router({
   list: protectedProcedure
@@ -197,8 +200,18 @@ export const occurrencesRouter = router({
         location: z.string().optional(),
         description: z.string().min(1, "Descrição é obrigatória"),
         severity: z.enum(SEVERITY_LEVELS),
-        photoData: z.string().optional(), // Base64
+        photoData: z.string().optional(), // Base64 (legado, foto única)
         photoFileName: z.string().optional(),
+        // Evidências fotográficas (até 5). Cada item é um data URL comprimido.
+        photos: z
+          .array(
+            z.object({
+              data: z.string(),
+              fileName: z.string().optional(),
+            })
+          )
+          .max(5)
+          .optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -219,7 +232,7 @@ export const occurrencesRouter = router({
         });
       }
 
-      const { photoData, photoFileName, ...occurrenceData } = input;
+      const { photoData, photoFileName, photos, ...occurrenceData } = input;
 
       const result = await db.insert(occurrences).values({
         ...occurrenceData,
@@ -228,14 +241,21 @@ export const occurrencesRouter = router({
       });
       const insertId = result[0].insertId;
 
-      // Upload photo if provided
-      if (photoData) {
+      // Persiste as evidências fotográficas. Aceita o campo legado (foto única)
+      // e o novo array `photos`. As fotos vão para o evidenceFiles (servidas em
+      // /api/evidence/:id), sem depender do storage S3 externo.
+      const photoList = [
+        ...(photoData ? [{ data: photoData, fileName: photoFileName }] : []),
+        ...(photos ?? []),
+      ].slice(0, 5);
+
+      for (const p of photoList) {
         const photo = await persistPhoto(
           db,
           ctx.user.id,
           input.vehicleId,
-          photoData,
-          photoFileName
+          p.data,
+          p.fileName
         );
 
         await db.insert(occurrenceAttachments).values({
@@ -266,6 +286,57 @@ export const occurrencesRouter = router({
             reason: "Ocorrência de alta severidade",
           },
           ...getRequestInfo(ctx.req),
+        });
+      }
+
+      // Notifica gestores e admins (painel do ArqueoFrotas) sobre a nova
+      // ocorrência — menos quem registrou. É o aviso que faltava.
+      const recipients = await db
+        .select({ id: users.id, email: users.email })
+        .from(users)
+        .where(
+          and(
+            eq(users.active, true),
+            or(eq(users.role, "admin"), eq(users.role, "gestor_frota"))
+          )
+        );
+      const sevLabel =
+        input.severity === "alta"
+          ? "alta"
+          : input.severity === "media"
+            ? "média"
+            : "baixa";
+      const emailTo: string[] = [];
+      for (const r of recipients) {
+        if (r.id === ctx.user.id) continue;
+        await db.insert(appNotifications).values({
+          userId: r.id,
+          type: "ocorrencia_nova",
+          title: `Nova ocorrência (${vehicle.plate})`,
+          message: `${ctx.user.name} registrou uma ocorrência de severidade ${sevLabel} no veículo ${vehicle.plate}.`,
+          entityType: "occurrence",
+          entityId: insertId,
+        });
+        if (r.email) emailTo.push(r.email);
+      }
+
+      // Aviso por email (best-effort, não bloqueia nem falha a criação).
+      if (emailTo.length > 0) {
+        const link = `${ENV.appBaseUrl}/occurrences/${insertId}`;
+        const descricao = occurrenceData.description.slice(0, 500);
+        void sendMail({
+          to: emailTo,
+          subject: `Nova ocorrência (${vehicle.plate}) — severidade ${sevLabel}`,
+          text:
+            `${ctx.user.name} registrou uma nova ocorrência.\n\n` +
+            `Veículo: ${vehicle.plate}\nSeveridade: ${sevLabel}\n` +
+            `Descrição: ${descricao}\n\nAbrir: ${link}`,
+          html:
+            `<p><strong>${ctx.user.name}</strong> registrou uma nova ocorrência.</p>` +
+            `<p><strong>Veículo:</strong> ${vehicle.plate}<br>` +
+            `<strong>Severidade:</strong> ${sevLabel}</p>` +
+            `<p><strong>Descrição:</strong><br>${descricao.replace(/</g, "&lt;")}</p>` +
+            `<p><a href="${link}">Abrir ocorrência no ArqueoFrotas</a></p>`,
         });
       }
 

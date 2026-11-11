@@ -24,13 +24,17 @@ export const userRoleEnum = mysqlEnum("role", [
   "manutencao",
 ]);
 
-export const vehicleTypeEnum = mysqlEnum("vehicleType", [
+const vehicleTypeValues = [
   "carro",
   "caminhonete",
   "moto",
   "van",
   "caminhao",
-]);
+] as const;
+// IMPORTANTE: um mysqlEnum é um builder mutável. Reutilizar a MESMA instância em
+// várias tabelas faz o `.notNull()` de uma vazar para as outras. Por isso cada
+// coluna vehicleType cria sua própria instância a partir de vehicleTypeValues.
+export const vehicleTypeEnum = mysqlEnum("vehicleType", vehicleTypeValues);
 
 export const vehicleStatusEnum = mysqlEnum("vehicleStatus", [
   "ativo",
@@ -116,6 +120,7 @@ export const users = mysqlTable("users", {
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
+  passwordHash: varchar("passwordHash", { length: 255 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: userRoleEnum.default("motorista").notNull(),
   unitId: int("unitId"),
@@ -233,7 +238,7 @@ export const checklistTemplates = mysqlTable("checklistTemplates", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
-  vehicleType: vehicleTypeEnum, // null = todos os tipos
+  vehicleType: mysqlEnum("vehicleType", vehicleTypeValues), // null = todos os tipos
   active: boolean("active").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -413,7 +418,7 @@ export const maintenancePlans = mysqlTable("maintenancePlans", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
-  vehicleType: vehicleTypeEnum, // null = todos os tipos
+  vehicleType: mysqlEnum("vehicleType", vehicleTypeValues), // null = todos os tipos
   vehicleId: int("vehicleId"), // null = todos os veículos do tipo
   intervalKm: int("intervalKm"), // Intervalo em km
   intervalDays: int("intervalDays"), // Intervalo em dias
@@ -913,7 +918,7 @@ export const vehicleFines = mysqlTable("vehicleFines", {
   vehicleId: int("vehicleId").notNull(),
   fineDate: timestamp("fineDate").notNull(),
   dueDate: timestamp("dueDate"),
-  autoInfracao: varchar("autoInfracao", { length: 50 }), // Número do auto de infração
+  autoInfracao: varchar("autoInfracao", { length: 255 }), // Número/descrição do auto de infração
   infraction: varchar("infraction", { length: 500 }).notNull(), // Descrição da infração
   location: varchar("location", { length: 500 }),
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
@@ -983,6 +988,79 @@ export const appNotificationsRelations = relations(
     }),
   })
 );
+
+// ============================================
+// ATENA — ASSISTENTE OPERACIONAL COM IA
+// ============================================
+
+// Diretrizes aprendidas (memória). Viram parte do system prompt da Atena.
+export const atenaMemories = mysqlTable("atenaMemories", {
+  id: int("id").autoincrement().primaryKey(),
+  directive: text("directive").notNull(), // regra imperativa reutilizável
+  category: mysqlEnum("atenaMemoryCategory", [
+    "custo",
+    "processo",
+    "preferencia",
+    "comercial",
+    "tecnico",
+    "prazo",
+    "modelo_escopo",
+    "geral",
+  ])
+    .default("geral")
+    .notNull(),
+  active: boolean("active").default(true).notNull(),
+  createdById: int("createdById"),
+  createdByName: varchar("createdByName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AtenaMemory = typeof atenaMemories.$inferSelect;
+export type InsertAtenaMemory = typeof atenaMemories.$inferInsert;
+
+// Histórico de conversa. Escopo: vehicleId null = chat geral; senão, por veículo.
+export const atenaChatMessages = mysqlTable("atenaChatMessages", {
+  id: int("id").autoincrement().primaryKey(),
+  role: mysqlEnum("atenaRole", ["user", "assistant"]).notNull(),
+  content: text("content").notNull(),
+  authorId: int("authorId"),
+  authorName: varchar("authorName", { length: 255 }),
+  vehicleId: int("vehicleId"),
+  category: varchar("category", { length: 50 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AtenaChatMessage = typeof atenaChatMessages.$inferSelect;
+export type InsertAtenaChatMessage = typeof atenaChatMessages.$inferInsert;
+
+// ============================================
+// OBSERVAÇÕES — canal interno de feedback sobre o sistema
+// ============================================
+
+export const observacoes = mysqlTable("observacoes", {
+  id: int("id").autoincrement().primaryKey(),
+  titulo: varchar("titulo", { length: 255 }).notNull(),
+  descricao: text("descricao").notNull(),
+  categoria: mysqlEnum("observacaoCategoria", [
+    "reclamacao",
+    "melhoria",
+    "bug",
+    "caracteristica",
+  ]).notNull(),
+  area: varchar("area", { length: 100 }),
+  imagens: json("imagens"), // array de URLs (prints colados)
+  status: mysqlEnum("observacaoStatus", ["aberta", "em_analise", "resolvida"])
+    .default("aberta")
+    .notNull(),
+  criadoPorId: int("criadoPorId"),
+  criadoPorNome: varchar("criadoPorNome", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Observacao = typeof observacoes.$inferSelect;
+export type InsertObservacao = typeof observacoes.$inferInsert;
 
 // Additive operational records. No existing files or readings are rewritten.
 export const operationReceipts = mysqlTable("operationReceipts", {

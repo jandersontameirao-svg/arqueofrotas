@@ -127,6 +127,13 @@ export function ServiceOrderFormPage() {
       supplierName: supplierName || undefined,
       supplierContact: supplierContact || undefined,
       occurrenceId: preselectedOccurrenceId ? parseInt(preselectedOccurrenceId) : undefined,
+      items: items
+        .filter((it) => it.description.trim())
+        .map((it) => ({
+          description: it.description.trim(),
+          quantity: it.quantity,
+          unitPrice: it.unitPrice,
+        })),
     });
   };
 

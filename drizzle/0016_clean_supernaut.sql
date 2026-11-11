@@ -1,0 +1,2 @@
+ALTER TABLE `checklistTemplates` MODIFY COLUMN `vehicleType` enum('carro','caminhonete','moto','van','caminhao');--> statement-breakpoint
+ALTER TABLE `maintenancePlans` MODIFY COLUMN `vehicleType` enum('carro','caminhonete','moto','van','caminhao');

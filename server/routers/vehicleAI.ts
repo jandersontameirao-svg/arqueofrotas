@@ -15,14 +15,27 @@ export const vehicleAIRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const dataUrl = `data:${input.mimeType};base64,${input.imageBase64}`;
+      const mimeType = input.mimeType || "image/jpeg";
+      const dataUrl = `data:${mimeType};base64,${input.imageBase64}`;
+      const isPdf = mimeType === "application/pdf";
+
+      // PDF (ex.: CRLV digital) vai como documento (file_url); imagem como vision.
+      const documentPart = isPdf
+        ? {
+            type: "file_url" as const,
+            file_url: { url: dataUrl, mime_type: "application/pdf" as const },
+          }
+        : {
+            type: "image_url" as const,
+            image_url: { url: dataUrl, detail: "high" as const },
+          };
 
       const result = await invokeLLM({
         messages: [
           {
             role: "system",
             content: `Você é um assistente especializado em extrair dados de documentos de veículos brasileiros (CRLV, CRV, etc.).
-Analise a imagem fornecida e extraia os seguintes campos. Retorne APENAS um JSON válido com os campos encontrados.
+Analise o documento fornecido (imagem ou PDF) e extraia os seguintes campos. Retorne APENAS um JSON válido com os campos encontrados.
 Se um campo não for encontrado, retorne null para ele.
 
 Campos esperados:
@@ -47,15 +60,9 @@ Retorne SOMENTE o JSON, sem markdown, sem explicações.`,
             content: [
               {
                 type: "text",
-                text: "Extraia os dados do veículo desta imagem de documento:",
+                text: "Extraia os dados do veículo deste documento:",
               },
-              {
-                type: "image_url",
-                image_url: {
-                  url: dataUrl,
-                  detail: "high",
-                },
-              },
+              documentPart,
             ],
           },
         ],
@@ -110,7 +117,7 @@ Retorne SOMENTE o JSON, sem markdown, sem explicações.`,
           data: null,
           rawResponse: responseText,
           error:
-            "Não foi possível extrair os dados do documento. Tente com uma imagem mais nítida.",
+            "Não foi possível extrair os dados do documento. Tente com um arquivo mais nítido/legível.",
         };
       }
     }),

@@ -28,6 +28,8 @@ import { driverRouter } from "./routers/driver";
 
 import { reportsRouter } from "./routers/reports";
 import { integrationRouter } from "./routers/integration";
+import { atenaRouter } from "./routers/atena";
+import { observacoesRouter } from "./routers/observacoes";
 
 export const appRouter = router({
   system: systemRouter,
@@ -67,6 +69,8 @@ export const appRouter = router({
   vehicleFines: vehicleFinesRouter,
   notifications: notificationsRouter,
   vehicleAI: vehicleAIRouter,
+  atena: atenaRouter,
+  observacoes: observacoesRouter,
 });
 
 export type AppRouter = typeof appRouter;

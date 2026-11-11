@@ -456,7 +456,12 @@ export function VehicleDetailPage() {
                                 <Button
                                   size="sm"
                                   variant="destructive"
-                                  onClick={() => deleteMutation.mutate({ id: photo.id })}
+                                  aria-label="Remover foto"
+                                  onClick={() => {
+                                    if (confirm("Tem certeza que deseja remover esta foto?")) {
+                                      deleteMutation.mutate({ id: photo.id });
+                                    }
+                                  }}
                                 >
                                   <X className="h-4 w-4" />
                                 </Button>
