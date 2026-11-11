@@ -433,6 +433,53 @@ export const occurrencesRouter = router({
         ...getRequestInfo(ctx.req),
       });
 
+      // Avisa o relator original que a ocorrência dele foi atualizada
+      // (painel + email), menos quando ele mesmo fez a alteração.
+      if (previous.reportedById && previous.reportedById !== ctx.user.id) {
+        const [reporter] = await db
+          .select({ id: users.id, email: users.email, active: users.active })
+          .from(users)
+          .where(eq(users.id, previous.reportedById))
+          .limit(1);
+        if (reporter?.active) {
+          const [veh] = await db
+            .select({ plate: vehicles.plate })
+            .from(vehicles)
+            .where(eq(vehicles.id, previous.vehicleId))
+            .limit(1);
+          const plate = veh?.plate ?? `#${previous.vehicleId}`;
+          const novoStatus =
+            input.status !== undefined && input.status !== previous.status
+              ? input.status
+              : null;
+          const statusTxt = novoStatus
+            ? ` Novo status: ${novoStatus.replace(/_/g, " ")}.`
+            : "";
+          await db.insert(appNotifications).values({
+            userId: reporter.id,
+            type: "ocorrencia_atualizada",
+            title: `Ocorrência atualizada (${plate})`,
+            message: `${ctx.user.name} atualizou a ocorrência do veículo ${plate}.${statusTxt}`,
+            entityType: "occurrence",
+            entityId: id,
+          });
+          if (reporter.email) {
+            const link = `${ENV.appBaseUrl}/occurrences/${id}`;
+            void sendMail({
+              to: reporter.email,
+              subject: `Ocorrência atualizada (${plate})`,
+              text:
+                `${ctx.user.name} atualizou a ocorrência que você registrou.\n\n` +
+                `Veículo: ${plate}.${statusTxt}\n\nAbrir: ${link}`,
+              html:
+                `<p><strong>${ctx.user.name}</strong> atualizou a ocorrência que você registrou.</p>` +
+                `<p><strong>Veículo:</strong> ${plate}.${statusTxt}</p>` +
+                `<p><a href="${link}">Abrir ocorrência no ArqueoFrotas</a></p>`,
+            });
+          }
+        }
+      }
+
       return { success: true };
     }),
 

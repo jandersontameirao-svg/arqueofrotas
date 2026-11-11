@@ -55,7 +55,11 @@ export const checklistResponseEnum = mysqlEnum("checklistResponse", [
   "na",
 ]);
 
-export const severityEnum = mysqlEnum("severity", ["baixa", "media", "alta"]);
+// O builder de enum do Drizzle é MUTÁVEL: reutilizar a mesma instância em
+// tabelas diferentes faz o .default()/.notNull() de uma vazar para a outra.
+// Por isso cada coluna cria sua própria instância a partir de severityValues.
+export const severityValues = ["baixa", "media", "alta"] as const;
+export const severityEnum = mysqlEnum("severity", severityValues);
 
 export const occurrenceStatusEnum = mysqlEnum("occurrenceStatus", [
   "aberto",
@@ -358,9 +362,9 @@ export const occurrences = mysqlTable("occurrences", {
   checklistResponseId: int("checklistResponseId"), // Se gerada por checklist
   serviceOrderId: int("serviceOrderId"), // Se vinculada a uma OS
   occurredAt: timestamp("occurredAt").notNull(),
-  location: varchar("location", { length: 255 }),
+  location: text("location"),
   description: text("description").notNull(),
-  severity: severityEnum.notNull(),
+  severity: mysqlEnum("severity", severityValues).notNull(),
   status: occurrenceStatusEnum.default("aberto").notNull(),
   closedAt: timestamp("closedAt"),
   closedById: int("closedById"),
@@ -467,7 +471,7 @@ export const serviceOrders = mysqlTable("serviceOrders", {
   occurrenceId: int("occurrenceId"), // Se corretiva vinculada a ocorrência
   status: serviceOrderStatusEnum.default("aberta").notNull(),
   description: text("description").notNull(),
-  priority: severityEnum.default("media").notNull(),
+  priority: mysqlEnum("severity", severityValues).default("media").notNull(),
   // Datas
   openedAt: timestamp("openedAt").defaultNow().notNull(),
   openedById: int("openedById").notNull(),

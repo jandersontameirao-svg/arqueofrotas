@@ -9,6 +9,7 @@ import { registerLocalAuthRoutes } from "./localAuth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { startDocumentExpiryScheduler } from "../domain/documentAlerts";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -74,6 +75,8 @@ async function startServer() {
 
   server.listen(port, host, () => {
     console.log(`Server running on http://${host}:${port}/`);
+    // Verificação diária de documentos vencendo (painel + email).
+    startDocumentExpiryScheduler();
   });
 }
 

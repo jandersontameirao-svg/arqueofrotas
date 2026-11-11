@@ -1,0 +1,1 @@
+ALTER TABLE `occurrences` MODIFY COLUMN `location` text;

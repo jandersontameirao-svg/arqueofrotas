@@ -1,9 +1,16 @@
 import { z } from "zod";
-import { eq, desc, and, ne } from "drizzle-orm";
+import { eq, desc, and, ne, or } from "drizzle-orm";
 import { router, gestorProcedure, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
-import { vehicleFines, vehicles, users } from "../../drizzle/schema";
+import {
+  vehicleFines,
+  vehicles,
+  users,
+  appNotifications,
+} from "../../drizzle/schema";
 import { createAuditLog, getRequestInfo } from "../audit";
+import { sendMail } from "../mailer";
+import { ENV } from "../_core/env";
 import { FINE_STATUSES } from "@shared/const";
 
 export const vehicleFinesRouter = router({
@@ -157,6 +164,71 @@ export const vehicleFinesRouter = router({
         newData: input as Record<string, unknown>,
         ...getRequestInfo(ctx.req),
       });
+
+      // Aviso de multa registrada (painel + email). Vai para admins/gestores e,
+      // se houver, para o motorista responsável — menos quem registrou.
+      const [veh] = await db
+        .select({ plate: vehicles.plate })
+        .from(vehicles)
+        .where(eq(vehicles.id, input.vehicleId))
+        .limit(1);
+      const plate = veh?.plate ?? `#${input.vehicleId}`;
+
+      const managers = await db
+        .select({ id: users.id, email: users.email })
+        .from(users)
+        .where(
+          and(
+            eq(users.active, true),
+            or(eq(users.role, "admin"), eq(users.role, "gestor_frota"))
+          )
+        );
+      const targets = new Map<number, string | null>();
+      for (const m of managers) targets.set(m.id, m.email);
+      if (input.responsibleDriverId) {
+        const [drv] = await db
+          .select({ id: users.id, email: users.email, active: users.active })
+          .from(users)
+          .where(eq(users.id, input.responsibleDriverId))
+          .limit(1);
+        if (drv?.active) targets.set(drv.id, drv.email);
+      }
+
+      const valor = input.amount.toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+      });
+      const emailTo: string[] = [];
+      for (const [userId, email] of Array.from(targets)) {
+        if (userId === ctx.user.id) continue;
+        await db.insert(appNotifications).values({
+          userId,
+          type: "multa_registrada",
+          title: `Multa registrada (${plate})`,
+          message: `${ctx.user.name} registrou uma multa de ${valor} no veículo ${plate}: ${input.infraction}.`,
+          entityType: "vehicle_fine",
+          entityId: insertId,
+        });
+        if (email) emailTo.push(email);
+      }
+
+      if (emailTo.length > 0) {
+        const link = `${ENV.appBaseUrl}/fines/${insertId}`;
+        const infra = input.infraction.slice(0, 500);
+        void sendMail({
+          to: emailTo,
+          subject: `Multa registrada (${plate}) — ${valor}`,
+          text:
+            `${ctx.user.name} registrou uma multa.\n\n` +
+            `Veículo: ${plate}\nValor: ${valor}\nInfração: ${infra}\n\nAbrir: ${link}`,
+          html:
+            `<p><strong>${ctx.user.name}</strong> registrou uma multa.</p>` +
+            `<p><strong>Veículo:</strong> ${plate}<br>` +
+            `<strong>Valor:</strong> ${valor}</p>` +
+            `<p><strong>Infração:</strong><br>${infra.replace(/</g, "&lt;")}</p>` +
+            `<p><a href="${link}">Abrir multa no ArqueoFrotas</a></p>`,
+        });
+      }
 
       return { id: insertId };
     }),
