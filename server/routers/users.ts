@@ -190,6 +190,25 @@ export const usersRouter = router({
 
       const { id, ...updateData } = input;
 
+      // Admin não pode desativar a própria conta por esta tela (mesma regra do
+      // deactivate), senão se tranca para fora.
+      if (id === ctx.user.id && updateData.active === false) {
+        throw new Error("Você não pode desativar sua própria conta");
+      }
+
+      // Email precisa continuar único — o login resolve o usuário por email e
+      // não há constraint no banco. O create já valida; o update faltava.
+      if (updateData.email) {
+        const collision = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(and(eq(users.email, updateData.email), ne(users.id, id)))
+          .limit(1);
+        if (collision.length > 0) {
+          throw new Error("Já existe um usuário com este email");
+        }
+      }
+
       // Get previous data for audit
       const [previous] = await db
         .select()
