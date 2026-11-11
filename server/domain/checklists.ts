@@ -9,11 +9,16 @@ import {
   vehicles,
   occurrences,
   reservations,
+  users,
+  appNotifications,
   type User,
 } from "../../drizzle/schema";
+import { or } from "drizzle-orm";
 import type { Database } from "./runtime";
 import { persistPhoto, decodePhoto } from "./evidence";
 import { recordKm } from "./odometer";
+import { sendMail } from "../mailer";
+import { ENV } from "../_core/env";
 export const checklistInput = z.object({
   vehicleId: z.number().int().positive(),
   templateId: z.number().int().positive(),
@@ -133,6 +138,8 @@ export async function submitChecklist(
     });
   const id = result[0].insertId;
   let critical = false;
+  let issueCount = 0;
+  let firstOccurrenceId: number | undefined;
   for (const response of input.responses) {
     const item = items.find(i => i.id === response.templateItemId)!;
     const photo = response.photoData
@@ -158,6 +165,8 @@ export async function submitChecklist(
           status: "aberto",
         });
       occurrenceId = occurrence[0].insertId;
+      issueCount++;
+      if (firstOccurrenceId === undefined) firstOccurrenceId = occurrenceId;
     }
     const insertedResponse = await db
       .insert(checklistResponses)
@@ -180,5 +189,72 @@ export async function submitChecklist(
       .update(vehicles)
       .set({ status: "manutencao" })
       .where(eq(vehicles.id, vehicle.id));
+  if (issueCount > 0)
+    await notifyChecklistIssues(
+      db,
+      user,
+      vehicle.id,
+      vehicle.plate,
+      issueCount,
+      critical,
+      firstOccurrenceId
+    );
   return { id, hasIssues, critical };
+}
+
+// Avisa gestores/admins quando um checklist abre ocorrência(s). Um aviso por
+// checklist (agregado) para não lotar o painel/caixa de email. Best-effort:
+// nunca derruba nem falha o envio do checklist (caminho crítico na retirada).
+async function notifyChecklistIssues(
+  db: Database,
+  reporter: User,
+  vehicleId: number,
+  plate: string,
+  issueCount: number,
+  critical: boolean,
+  firstOccurrenceId?: number
+) {
+  try {
+    const recipients = await db
+      .select({ id: users.id, email: users.email })
+      .from(users)
+      .where(
+        and(
+          eq(users.active, true),
+          or(eq(users.role, "admin"), eq(users.role, "gestor_frota"))
+        )
+      );
+    const plural = issueCount > 1 ? "não conformidades" : "não conformidade";
+    const critTxt = critical
+      ? " Item crítico — o veículo foi enviado para manutenção."
+      : "";
+    const title = `Checklist com ${issueCount} ${plural} (${plate})`;
+    const message = `${reporter.name} registrou um checklist com ${issueCount} ${plural} no veículo ${plate}.${critTxt}`;
+    const emailTo: string[] = [];
+    for (const r of recipients) {
+      if (r.id === reporter.id) continue;
+      await db.insert(appNotifications).values({
+        userId: r.id,
+        type: "ocorrencia_nova",
+        title,
+        message,
+        entityType: "occurrence",
+        entityId: firstOccurrenceId ?? vehicleId,
+      });
+      if (r.email) emailTo.push(r.email);
+    }
+    if (emailTo.length > 0) {
+      const link = firstOccurrenceId
+        ? `${ENV.appBaseUrl}/occurrences/${firstOccurrenceId}`
+        : `${ENV.appBaseUrl}/vehicles/${vehicleId}`;
+      void sendMail({
+        to: emailTo,
+        subject: title,
+        text: `${message}\n\nAbrir: ${link}`,
+        html: `<p>${message}</p><p><a href="${link}">Abrir no ArqueoFrotas</a></p>`,
+      });
+    }
+  } catch (error) {
+    console.error("[checklists] Falha ao notificar não conformidades:", error);
+  }
 }
