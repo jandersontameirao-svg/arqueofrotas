@@ -262,16 +262,26 @@ export const maintenancePlansRouter = router({
         vehicleMaintenanceStatus.nextDueDate
       );
 
-    // Filter to show only a_vencer and vencida
+    // Status calculado ao vivo (a coluna gravada fica sempre "em_dia").
+    // Vencida: passou da data ou atingiu o km. A vencer: dentro de 7 dias ou
+    // 500 km do vencimento. Mantém os mesmos limites do card do dashboard.
+    const agora = new Date();
+    const limiteAviso = new Date();
+    limiteAviso.setDate(limiteAviso.getDate() + 7);
     return result
-      .map(r => ({
-        ...r,
-        status:
-          (r.nextDueDate && r.nextDueDate <= new Date()) ||
-          (r.nextDueKm !== null && r.currentKm >= r.nextDueKm)
-            ? "vencida"
-            : r.status,
-      }))
+      .map(r => {
+        const vencida =
+          (r.nextDueDate !== null && r.nextDueDate <= agora) ||
+          (r.nextDueKm !== null && r.currentKm >= r.nextDueKm);
+        const aVencer =
+          !vencida &&
+          ((r.nextDueDate !== null && r.nextDueDate <= limiteAviso) ||
+            (r.nextDueKm !== null && r.nextDueKm - r.currentKm <= 500));
+        return {
+          ...r,
+          status: vencida ? "vencida" : aVencer ? "a_vencer" : "em_dia",
+        };
+      })
       .filter(r => r.status !== "em_dia");
   }),
 

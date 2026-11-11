@@ -10,6 +10,7 @@ import {
   serviceOrders,
   vehicleDocuments,
   vehicleMaintenanceStatus,
+  maintenancePlans,
 } from "../../drizzle/schema";
 
 export const dashboardRouter = router({
@@ -125,15 +126,45 @@ export const dashboardRouter = router({
       ).length,
     };
 
-    // Maintenance alerts
+    // Alertas de manutenção calculados ao vivo. A coluna `status` só é gravada
+    // como "em_dia" na execução e nada a reavalia depois, então contar por ela
+    // zerava o card. Comparamos vencimento por data/km como em getMaintenanceAlerts.
+    const DIAS_AVISO = 7; // dentro de 7 dias do vencimento => a vencer
+    const KM_AVISO = 500; // dentro de 500 km do vencimento => a vencer
     const maintenanceAlerts = await db
-      .select({ status: vehicleMaintenanceStatus.status })
+      .select({
+        nextDueDate: vehicleMaintenanceStatus.nextDueDate,
+        nextDueKm: vehicleMaintenanceStatus.nextDueKm,
+        currentKm: vehicles.currentKm,
+      })
       .from(vehicleMaintenanceStatus)
-      .where(ne(vehicleMaintenanceStatus.status, "em_dia"));
+      .innerJoin(
+        maintenancePlans,
+        eq(vehicleMaintenanceStatus.maintenancePlanId, maintenancePlans.id)
+      )
+      .innerJoin(vehicles, eq(vehicleMaintenanceStatus.vehicleId, vehicles.id))
+      .where(and(eq(vehicles.active, true), eq(maintenancePlans.active, true)));
 
+    const limiteAviso = new Date();
+    limiteAviso.setDate(limiteAviso.getDate() + DIAS_AVISO);
+    let mVencidas = 0;
+    let mAVencer = 0;
+    for (const m of maintenanceAlerts) {
+      const vencida =
+        (m.nextDueDate !== null && m.nextDueDate <= today) ||
+        (m.nextDueKm !== null && m.currentKm >= m.nextDueKm);
+      if (vencida) {
+        mVencidas++;
+        continue;
+      }
+      const aVencer =
+        (m.nextDueDate !== null && m.nextDueDate <= limiteAviso) ||
+        (m.nextDueKm !== null && m.nextDueKm - m.currentKm <= KM_AVISO);
+      if (aVencer) mAVencer++;
+    }
     const maintenanceStats = {
-      aVencer: maintenanceAlerts.filter(m => m.status === "a_vencer").length,
-      vencidas: maintenanceAlerts.filter(m => m.status === "vencida").length,
+      aVencer: mAVencer,
+      vencidas: mVencidas,
     };
 
     return {
