@@ -181,28 +181,26 @@ export function VehicleDetailPage() {
     setUploadingPhoto(selectedPhotoType);
 
     try {
-      // Converter para base64 e fazer upload via S3
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
+      // Converte a imagem para data URL base64 e envia via tRPC. O servidor
+      // persiste em evidenceFiles e serve em /api/evidence/:id — não existe
+      // endpoint /api/upload (era por isso que a foto do veículo falhava).
+      const photoData = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error("Falha ao ler o arquivo"));
+        reader.readAsDataURL(file);
       });
-
-      if (!response.ok) {
-        throw new Error("Falha no upload");
-      }
-
-      const { url } = await response.json();
 
       await uploadMutation.mutateAsync({
         vehicleId: Number(id),
         photoType: selectedPhotoType,
-        photoUrl: url,
+        photoData,
+        photoFileName: file.name,
       });
     } catch (error) {
-      toast.error("Erro ao enviar foto");
+      toast.error("Erro ao enviar foto", {
+        description: error instanceof Error ? error.message : undefined,
+      });
       setUploadingPhoto(null);
     }
 
@@ -240,7 +238,7 @@ export function VehicleDetailPage() {
         type="file"
         ref={fileInputRef}
         className="hidden"
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp"
         onChange={handleFileChange}
       />
 

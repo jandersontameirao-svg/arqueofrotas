@@ -5,6 +5,7 @@ import { vehiclePhotos } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 import { createAuditLog, getRequestInfo } from "../audit";
 import { TRPCError } from "@trpc/server";
+import { persistPhoto } from "../domain/evidence";
 
 const photoTypeEnum = z.enum([
   "frente",
@@ -54,16 +55,31 @@ export const vehiclePhotosRouter = router({
       z.object({
         vehicleId: z.number(),
         photoType: photoTypeEnum,
-        photoUrl: z.string().url(),
+        // Foto enviada como data URL base64 (image/jpeg|png|webp). É persistida
+        // no evidenceFiles e servida em /api/evidence/:id — igual às fotos de
+        // ocorrência/checklist. O endpoint /api/upload não existe, por isso o
+        // upload de foto de veículo não funcionava.
+        photoData: z.string().min(1),
+        photoFileName: z.string().max(255).optional(),
         description: z.string().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-      
+
       const reqInfo = getRequestInfo(ctx.req);
-      
+
+      // Persiste a imagem e gera a URL servível. decodePhoto valida tipo/tamanho.
+      const stored = await persistPhoto(
+        db,
+        ctx.user.id,
+        input.vehicleId,
+        input.photoData,
+        input.photoFileName
+      );
+      const photoUrl = stored.url;
+
       // Verificar se já existe foto desse tipo para o veículo
       const [existing] = await db
         .select()
@@ -80,7 +96,7 @@ export const vehiclePhotosRouter = router({
         await db
           .update(vehiclePhotos)
           .set({
-            photoUrl: input.photoUrl,
+            photoUrl,
             description: input.description,
             uploadedById: ctx.user.id,
           })
@@ -92,7 +108,13 @@ export const vehiclePhotosRouter = router({
           entityType: "vehicle",
           entityId: existing.id,
           previousData: existing as unknown as Record<string, unknown>,
-          newData: input as unknown as Record<string, unknown>,
+          // Não gravar o base64 da foto no log de auditoria.
+          newData: {
+            vehicleId: input.vehicleId,
+            photoType: input.photoType,
+            photoUrl,
+            description: input.description,
+          } as Record<string, unknown>,
           ...reqInfo,
         });
 
@@ -102,7 +124,7 @@ export const vehiclePhotosRouter = router({
         const [result] = await db.insert(vehiclePhotos).values({
           vehicleId: input.vehicleId,
           photoType: input.photoType,
-          photoUrl: input.photoUrl,
+          photoUrl,
           description: input.description,
           uploadedById: ctx.user.id,
         });
@@ -112,7 +134,13 @@ export const vehiclePhotosRouter = router({
           action: "CREATE",
           entityType: "vehicle",
           entityId: result.insertId,
-          newData: input as unknown as Record<string, unknown>,
+          // Não gravar o base64 da foto no log de auditoria.
+          newData: {
+            vehicleId: input.vehicleId,
+            photoType: input.photoType,
+            photoUrl,
+            description: input.description,
+          } as Record<string, unknown>,
           ...reqInfo,
         });
 
