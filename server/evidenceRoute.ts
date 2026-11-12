@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { eq, and } from "drizzle-orm";
 import { sdk } from "./_core/sdk";
 import { getDb } from "./db";
-import { evidenceFiles, serviceOrders } from "../drizzle/schema";
+import { evidenceFiles, serviceOrders, vehiclePhotos } from "../drizzle/schema";
 export function registerEvidenceRoute(app: Express) {
   app.get("/api/evidence/:id", async (req, res) => {
     try {
@@ -20,7 +20,30 @@ export function registerEvidenceRoute(app: Express) {
         .select()
         .from(evidenceFiles)
         .where(eq(evidenceFiles.id, req.params.id));
-      if (!file || (user.role === "motorista" && file.userId !== user.id)) {
+      if (!file) {
+        res.sendStatus(404);
+        return;
+      }
+      // Fotos de status do veículo (aba "Fotos") são referência geral — qualquer
+      // usuário ativo pode ver, mesmo motorista/manutenção que não as enviou.
+      // Elas ficam no evidenceFiles com o userId do gestor, então sem isto o
+      // motorista levava 404 ao abrir o veículo.
+      const [isVehicleStatusPhoto] = await db
+        .select({ id: vehiclePhotos.id })
+        .from(vehiclePhotos)
+        .where(eq(vehiclePhotos.photoUrl, `/api/evidence/${req.params.id}`))
+        .limit(1);
+      if (isVehicleStatusPhoto) {
+        res.set({
+          "Content-Type": file.mimeType,
+          "X-Content-Type-Options": "nosniff",
+          "Cache-Control": "private, no-store",
+          "Content-Disposition": `inline; filename="${file.fileName}"`,
+        });
+        res.send(Buffer.from(file.content, "base64"));
+        return;
+      }
+      if (user.role === "motorista" && file.userId !== user.id) {
         res.sendStatus(404);
         return;
       }
