@@ -1,5 +1,5 @@
 import { useLocation, useParams } from "wouter";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -58,6 +58,37 @@ const PHOTO_TYPES = [
 
 type PhotoType = typeof PHOTO_TYPES[number]["key"];
 
+// Redimensiona/comprime a imagem no próprio navegador antes de enviar. Fotos de
+// celular facilmente passam de 8 MB (o limite do servidor) e deixam o upload
+// lento; aqui a maior dimensão vira no máx. 1600px em JPEG, caindo pra poucas
+// centenas de KB. Se algo falhar, cai no base64 cru do arquivo original.
+async function fileToUploadDataUrl(file: File): Promise<string> {
+  const readRaw = () =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error("Falha ao ler o arquivo"));
+      reader.readAsDataURL(file);
+    });
+  try {
+    const bitmap = await createImageBitmap(file);
+    const maxDim = 1600;
+    const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return await readRaw();
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close?.();
+    return canvas.toDataURL("image/jpeg", 0.82);
+  } catch {
+    return await readRaw();
+  }
+}
+
 export function VehicleDetailPage() {
   const [, navigate] = useLocation();
   const { id } = useParams<{ id: string }>();
@@ -67,6 +98,17 @@ export function VehicleDetailPage() {
   const [uploadingPhoto, setUploadingPhoto] = useState<PhotoType | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedPhotoType, setSelectedPhotoType] = useState<PhotoType | null>(null);
+  const [lightbox, setLightbox] = useState<{ url: string; label: string } | null>(null);
+
+  // Fecha a foto ampliada com a tecla Esc.
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightbox(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightbox]);
 
   // Document modal state
   const [showDocModal, setShowDocModal] = useState(false);
@@ -181,15 +223,10 @@ export function VehicleDetailPage() {
     setUploadingPhoto(selectedPhotoType);
 
     try {
-      // Converte a imagem para data URL base64 e envia via tRPC. O servidor
-      // persiste em evidenceFiles e serve em /api/evidence/:id — não existe
-      // endpoint /api/upload (era por isso que a foto do veículo falhava).
-      const photoData = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => reject(new Error("Falha ao ler o arquivo"));
-        reader.readAsDataURL(file);
-      });
+      // Comprime/redimensiona no navegador e envia o data URL via tRPC. O
+      // servidor persiste em evidenceFiles e serve em /api/evidence/:id — não
+      // existe endpoint /api/upload (era por isso que a foto do veículo falhava).
+      const photoData = await fileToUploadDataUrl(file);
 
       await uploadMutation.mutateAsync({
         vehicleId: Number(id),
@@ -424,7 +461,10 @@ export function VehicleDetailPage() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-6">
-                Registre fotos do veículo para documentar seu estado atual. Essas fotos servem como referência para comparação em checklists e ocorrências.
+                Registre fotos do veículo para documentar seu estado atual. Servem
+                de referência para comparação em checklists e ocorrências. Pode
+                enviar da galeria ou tirar na hora pelo celular — a imagem é
+                otimizada automaticamente. Toque numa foto para ampliar.
               </p>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {PHOTO_TYPES.map(({ key, label }) => {
@@ -437,23 +477,38 @@ export function VehicleDetailPage() {
                       <div className="aspect-square rounded-lg border-2 border-dashed border-muted-foreground/25 overflow-hidden bg-muted/50 relative">
                         {photo ? (
                           <>
-                            <img
-                              src={photo.photoUrl}
-                              alt={label}
-                              className="w-full h-full object-cover"
-                            />
-                            {canEdit && (
-                              <div className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setLightbox({ url: photo.photoUrl, label })}
+                              className="w-full h-full block cursor-zoom-in"
+                              aria-label={`Ampliar foto: ${label}`}
+                            >
+                              <img
+                                src={photo.photoUrl}
+                                alt={label}
+                                className="w-full h-full object-cover"
+                              />
+                            </button>
+                            {isUploading && (
+                              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                <Loader2 className="h-8 w-8 animate-spin text-white" />
+                              </div>
+                            )}
+                            {canEdit && !isUploading && (
+                              <div className="absolute bottom-1 right-1 flex gap-1">
                                 <Button
-                                  size="sm"
+                                  size="icon-sm"
                                   variant="secondary"
+                                  className="shadow-md"
+                                  aria-label="Trocar foto"
                                   onClick={() => handlePhotoUpload(key)}
                                 >
                                   <Upload className="h-4 w-4" />
                                 </Button>
                                 <Button
-                                  size="sm"
+                                  size="icon-sm"
                                   variant="destructive"
+                                  className="shadow-md"
                                   aria-label="Remover foto"
                                   onClick={() => {
                                     if (confirm("Tem certeza que deseja remover esta foto?")) {
@@ -491,6 +546,37 @@ export function VehicleDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          {lightbox && (
+            <div
+              className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+              onClick={() => setLightbox(null)}
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Foto ampliada: ${lightbox.label}`}
+            >
+              <Button
+                size="icon"
+                variant="secondary"
+                className="absolute top-4 right-4 shadow-lg"
+                aria-label="Fechar"
+                onClick={() => setLightbox(null)}
+              >
+                <X className="h-5 w-5" />
+              </Button>
+              <figure
+                className="max-w-full max-h-full flex flex-col items-center gap-3"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <img
+                  src={lightbox.url}
+                  alt={lightbox.label}
+                  className="max-w-full max-h-[80vh] object-contain rounded-lg"
+                />
+                <figcaption className="text-white/90 text-sm">{lightbox.label}</figcaption>
+              </figure>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="documents" className="space-y-4">
