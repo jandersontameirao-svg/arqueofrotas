@@ -464,7 +464,8 @@ export function VehicleDetailPage() {
                 Registre fotos do veículo para documentar seu estado atual. Servem
                 de referência para comparação em checklists e ocorrências. Pode
                 enviar da galeria ou tirar na hora pelo celular — a imagem é
-                otimizada automaticamente. Toque numa foto para ampliar.
+                otimizada automaticamente. Toque numa foto para ampliar, ou use
+                o botão "Trocar" abaixo dela para substituir por outra.
               </p>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {PHOTO_TYPES.map(({ key, label }) => {
@@ -494,32 +495,6 @@ export function VehicleDetailPage() {
                                 <Loader2 className="h-8 w-8 animate-spin text-white" />
                               </div>
                             )}
-                            {canEdit && !isUploading && (
-                              <div className="absolute bottom-1 right-1 flex gap-1">
-                                <Button
-                                  size="icon-sm"
-                                  variant="secondary"
-                                  className="shadow-md"
-                                  aria-label="Trocar foto"
-                                  onClick={() => handlePhotoUpload(key)}
-                                >
-                                  <Upload className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  size="icon-sm"
-                                  variant="destructive"
-                                  className="shadow-md"
-                                  aria-label="Remover foto"
-                                  onClick={() => {
-                                    if (confirm("Tem certeza que deseja remover esta foto?")) {
-                                      deleteMutation.mutate({ id: photo.id });
-                                    }
-                                  }}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            )}
                           </>
                         ) : (
                           <button
@@ -540,6 +515,41 @@ export function VehicleDetailPage() {
                           </button>
                         )}
                       </div>
+
+                      {/* Ação explícita abaixo da foto: trocar é óbvio e fácil de
+                          tocar no celular (o toque na imagem só amplia). */}
+                      {canEdit && photo && (
+                        <div className="mt-2 flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1"
+                            disabled={isUploading}
+                            onClick={() => handlePhotoUpload(key)}
+                          >
+                            {isUploading ? (
+                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            ) : (
+                              <Upload className="h-4 w-4 mr-1" />
+                            )}
+                            Trocar
+                          </Button>
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            aria-label="Remover foto"
+                            disabled={isUploading}
+                            onClick={() => {
+                              if (confirm("Tem certeza que deseja remover esta foto?")) {
+                                deleteMutation.mutate({ id: photo.id });
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
