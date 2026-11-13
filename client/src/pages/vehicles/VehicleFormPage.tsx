@@ -15,8 +15,195 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Car, Loader2, Bot, Upload, CheckCircle, Sparkles } from "lucide-react";
+import {
+  Car,
+  Loader2,
+  Bot,
+  Upload,
+  CheckCircle,
+  Sparkles,
+  Camera,
+  Trash2,
+  Image as ImageIcon,
+} from "lucide-react";
 import { LABELS, VEHICLE_TYPES, VEHICLE_STATUSES } from "@shared/const";
+import { fileToUploadDataUrl } from "@/lib/image";
+
+const PHOTO_TYPES = [
+  { key: "frente", label: "Frente" },
+  { key: "traseira", label: "Traseira" },
+  { key: "lateral_esquerda", label: "Lateral Esquerda" },
+  { key: "lateral_direita", label: "Lateral Direita" },
+  { key: "interior", label: "Interior" },
+] as const;
+
+type PhotoType = (typeof PHOTO_TYPES)[number]["key"];
+
+// Seção de fotos do veículo, disponível também na tela de Editar para ficar à
+// mão (antes só existia no detalhe do veículo). Reusa vehiclePhotos.upsert, que
+// persiste em evidenceFiles e serve em /api/evidence/:id.
+function VehiclePhotosSection({ vehicleId }: { vehicleId: number }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedType, setSelectedType] = useState<PhotoType | null>(null);
+  const [uploadingType, setUploadingType] = useState<PhotoType | null>(null);
+
+  const { data: photos, refetch } = trpc.vehiclePhotos.listByVehicle.useQuery(
+    { vehicleId },
+    { enabled: Number.isFinite(vehicleId) && vehicleId > 0 }
+  );
+
+  const uploadMutation = trpc.vehiclePhotos.upsert.useMutation({
+    onSuccess: () => {
+      toast.success("Foto enviada com sucesso!");
+      refetch();
+      setUploadingType(null);
+    },
+    onError: error => {
+      toast.error("Erro ao enviar foto", { description: error.message });
+      setUploadingType(null);
+    },
+  });
+
+  const deleteMutation = trpc.vehiclePhotos.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Foto removida com sucesso!");
+      refetch();
+    },
+    onError: error => {
+      toast.error("Erro ao remover foto", { description: error.message });
+    },
+  });
+
+  const pickFor = (type: PhotoType) => {
+    setSelectedType(type);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedType) return;
+    setUploadingType(selectedType);
+    try {
+      const photoData = await fileToUploadDataUrl(file);
+      await uploadMutation.mutateAsync({
+        vehicleId,
+        photoType: selectedType,
+        photoData,
+        photoFileName: file.name,
+      });
+    } catch (error) {
+      toast.error("Erro ao enviar foto", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+      setUploadingType(null);
+    }
+    e.target.value = "";
+    setSelectedType(null);
+  };
+
+  const getPhoto = (type: PhotoType) => photos?.find(p => p.photoType === type);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Camera className="h-5 w-5" />
+          Fotos do Veículo
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <input
+          type="file"
+          ref={fileInputRef}
+          className="hidden"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={handleFileChange}
+        />
+        <p className="text-sm text-muted-foreground mb-6">
+          Envie fotos dos cinco ângulos do veículo — do computador ou do celular.
+          A imagem é otimizada automaticamente antes de subir.
+        </p>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          {PHOTO_TYPES.map(({ key, label }) => {
+            const photo = getPhoto(key);
+            const isUploading = uploadingType === key;
+            return (
+              <div key={key}>
+                <p className="text-sm font-medium mb-2 text-center">{label}</p>
+                <div className="aspect-square rounded-lg border-2 border-dashed border-muted-foreground/25 overflow-hidden bg-muted/50 relative">
+                  {photo ? (
+                    <>
+                      <img
+                        src={photo.photoUrl}
+                        alt={label}
+                        className="w-full h-full object-cover"
+                      />
+                      {isUploading && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                          <Loader2 className="h-8 w-8 animate-spin text-white" />
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => pickFor(key)}
+                      disabled={isUploading}
+                      className="w-full h-full flex flex-col items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                    >
+                      {isUploading ? (
+                        <Loader2 className="h-8 w-8 animate-spin" />
+                      ) : (
+                        <>
+                          <ImageIcon className="h-8 w-8 mb-2" />
+                          <span className="text-xs">Clique para adicionar</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+                {photo && (
+                  <div className="mt-2 flex items-center gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      disabled={isUploading}
+                      onClick={() => pickFor(key)}
+                    >
+                      {isUploading ? (
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      ) : (
+                        <Upload className="h-4 w-4 mr-1" />
+                      )}
+                      Trocar
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive"
+                      aria-label="Remover foto"
+                      disabled={isUploading}
+                      onClick={() => {
+                        if (confirm("Tem certeza que deseja remover esta foto?")) {
+                          deleteMutation.mutate({ id: photo.id });
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 type VehicleFormData = {
   plate: string;
@@ -567,6 +754,8 @@ export function VehicleFormPage() {
           </Button>
         </div>
       </form>
+
+      {isEditing && id && <VehiclePhotosSection vehicleId={Number(id)} />}
     </div>
   );
 }
