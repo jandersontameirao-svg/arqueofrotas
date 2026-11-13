@@ -69,6 +69,8 @@ export function VehicleDetailPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedPhotoType, setSelectedPhotoType] = useState<PhotoType | null>(null);
   const [lightbox, setLightbox] = useState<{ url: string; label: string } | null>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
 
   // Fecha a foto ampliada com a tecla Esc.
   useEffect(() => {
@@ -181,9 +183,41 @@ export function VehicleDetailPage() {
     },
   });
 
+  const setCoverMutation = trpc.vehiclePhotos.setCover.useMutation({
+    onSuccess: () => {
+      toast.success("Foto de capa atualizada!");
+      utils.vehicles.getById.invalidate({ id: Number(id) });
+      setUploadingCover(false);
+    },
+    onError: (error) => {
+      toast.error("Erro ao atualizar a capa", { description: error.message });
+      setUploadingCover(false);
+    },
+  });
+
   const handlePhotoUpload = async (photoType: PhotoType) => {
     setSelectedPhotoType(photoType);
     fileInputRef.current?.click();
+  };
+
+  const handleCoverChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingCover(true);
+    try {
+      const photoData = await fileToUploadDataUrl(file);
+      await setCoverMutation.mutateAsync({
+        vehicleId: Number(id),
+        photoData,
+        photoFileName: file.name,
+      });
+    } catch (error) {
+      toast.error("Erro ao atualizar a capa", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+      setUploadingCover(false);
+    }
+    e.target.value = "";
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -248,6 +282,13 @@ export function VehicleDetailPage() {
         accept="image/jpeg,image/png,image/webp"
         onChange={handleFileChange}
       />
+      <input
+        type="file"
+        ref={coverInputRef}
+        className="hidden"
+        accept="image/jpeg,image/png,image/webp"
+        onChange={handleCoverChange}
+      />
 
       <Breadcrumb
         items={[
@@ -259,8 +300,40 @@ export function VehicleDetailPage() {
       <PageHeader
         title={vehicle.plate}
         description={`${vehicle.brand ?? ""} ${vehicle.model} ${vehicle.year}`}
-        icon={Car}
         backLink="/vehicles"
+        iconSlot={
+          <button
+            type="button"
+            onClick={() => {
+              if (canEdit && !uploadingCover) coverInputRef.current?.click();
+            }}
+            disabled={!canEdit || uploadingCover}
+            title={canEdit ? "Clique para alterar a foto de capa" : undefined}
+            className="group relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-primary/10 shrink-0 disabled:cursor-default"
+            aria-label={canEdit ? "Alterar foto de capa do veículo" : "Foto do veículo"}
+          >
+            {vehicle.coverPhotoUrl ? (
+              <img
+                src={vehicle.coverPhotoUrl}
+                alt={vehicle.plate}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <Car className="h-6 w-6 text-primary" />
+            )}
+            {uploadingCover ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                <Loader2 className="h-5 w-5 animate-spin text-white" />
+              </div>
+            ) : (
+              canEdit && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-colors">
+                  <Camera className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              )
+            )}
+          </button>
+        }
         actions={
           canEdit && (
             <div className="flex gap-2">

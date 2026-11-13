@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, gestorProcedure, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
-import { vehiclePhotos } from "../../drizzle/schema";
+import { vehiclePhotos, vehicles } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 import { createAuditLog, getRequestInfo } from "../audit";
 import { TRPCError } from "@trpc/server";
@@ -146,6 +146,69 @@ export const vehiclePhotosRouter = router({
 
         return { id: result.insertId, updated: false };
       }
+    }),
+
+  // Definir/trocar a foto de capa do veículo (imagem única do cabeçalho).
+  // Independente das 5 fotos de ângulo; guarda só a URL em vehicles.coverPhotoUrl.
+  setCover: gestorProcedure
+    .input(
+      z.object({
+        vehicleId: z.number(),
+        photoData: z.string().min(1),
+        photoFileName: z.string().max(255).optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      const stored = await persistPhoto(
+        db,
+        ctx.user.id,
+        input.vehicleId,
+        input.photoData,
+        input.photoFileName
+      );
+
+      await db
+        .update(vehicles)
+        .set({ coverPhotoUrl: stored.url })
+        .where(eq(vehicles.id, input.vehicleId));
+
+      await createAuditLog({
+        user: ctx.user,
+        action: "UPDATE",
+        entityType: "vehicle",
+        entityId: input.vehicleId,
+        newData: { coverPhotoUrl: stored.url } as Record<string, unknown>,
+        ...getRequestInfo(ctx.req),
+      });
+
+      return { coverPhotoUrl: stored.url };
+    }),
+
+  // Remover a foto de capa (volta ao ícone padrão).
+  removeCover: gestorProcedure
+    .input(z.object({ vehicleId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      await db
+        .update(vehicles)
+        .set({ coverPhotoUrl: null })
+        .where(eq(vehicles.id, input.vehicleId));
+
+      await createAuditLog({
+        user: ctx.user,
+        action: "UPDATE",
+        entityType: "vehicle",
+        entityId: input.vehicleId,
+        newData: { coverPhotoUrl: null } as Record<string, unknown>,
+        ...getRequestInfo(ctx.req),
+      });
+
+      return { success: true };
     }),
 
   // Deletar foto

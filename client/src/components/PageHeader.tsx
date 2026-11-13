@@ -7,6 +7,8 @@ interface PageHeaderProps {
   title: string;
   description?: string;
   icon?: LucideIcon;
+  /** Substitui a caixinha de ícone padrão por um conteúdo custom (ex.: foto de capa clicável). */
+  iconSlot?: React.ReactNode;
   backLink?: string;
   actions?: React.ReactNode;
   className?: string;
@@ -16,6 +18,7 @@ export function PageHeader({
   title,
   description,
   icon: Icon,
+  iconSlot,
   backLink,
   actions,
   className,
@@ -36,11 +39,13 @@ export function PageHeader({
           </Button>
         )}
         <div className="flex items-center gap-3">
-          {Icon && (
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Icon className="h-5 w-5 text-primary" />
-            </div>
-          )}
+          {iconSlot
+            ? iconSlot
+            : Icon && (
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <Icon className="h-5 w-5 text-primary" />
+                </div>
+              )}
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
             {description && (

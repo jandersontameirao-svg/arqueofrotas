@@ -174,6 +174,7 @@ export const vehiclesRouter = router({
           chassi: vehicles.chassi,
           renavam: vehicles.renavam,
           trackingDeviceId: vehicles.trackingDeviceId,
+          coverPhotoUrl: vehicles.coverPhotoUrl,
           observations: vehicles.observations,
           active: vehicles.active,
           createdAt: vehicles.createdAt,

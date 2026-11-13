@@ -127,6 +127,13 @@
       "when": 1794402659383,
       "tag": "0017_strong_speedball",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1794599172931,
+      "tag": "0018_natural_thor_girl",
+      "breakpoints": true
     }
   ]
 }

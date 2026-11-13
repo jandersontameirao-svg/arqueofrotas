@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { eq, and } from "drizzle-orm";
 import { sdk } from "./_core/sdk";
 import { getDb } from "./db";
-import { evidenceFiles, serviceOrders, vehiclePhotos } from "../drizzle/schema";
+import { evidenceFiles, serviceOrders, vehiclePhotos, vehicles } from "../drizzle/schema";
 export function registerEvidenceRoute(app: Express) {
   app.get("/api/evidence/:id", async (req, res) => {
     try {
@@ -28,12 +28,21 @@ export function registerEvidenceRoute(app: Express) {
       // usuário ativo pode ver, mesmo motorista/manutenção que não as enviou.
       // Elas ficam no evidenceFiles com o userId do gestor, então sem isto o
       // motorista levava 404 ao abrir o veículo.
+      const evidenceUrl = `/api/evidence/${req.params.id}`;
       const [isVehicleStatusPhoto] = await db
         .select({ id: vehiclePhotos.id })
         .from(vehiclePhotos)
-        .where(eq(vehiclePhotos.photoUrl, `/api/evidence/${req.params.id}`))
+        .where(eq(vehiclePhotos.photoUrl, evidenceUrl))
         .limit(1);
-      if (isVehicleStatusPhoto) {
+      // Foto de capa do veículo também é referência geral (aparece no cabeçalho).
+      const [isVehicleCover] = isVehicleStatusPhoto
+        ? [undefined]
+        : await db
+            .select({ id: vehicles.id })
+            .from(vehicles)
+            .where(eq(vehicles.coverPhotoUrl, evidenceUrl))
+            .limit(1);
+      if (isVehicleStatusPhoto || isVehicleCover) {
         res.set({
           "Content-Type": file.mimeType,
           "X-Content-Type-Options": "nosniff",

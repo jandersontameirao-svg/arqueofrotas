@@ -199,6 +199,7 @@ export const vehicles = mysqlTable("vehicles", {
   chassi: varchar("chassi", { length: 50 }),
   renavam: varchar("renavam", { length: 20 }),
   trackingDeviceId: varchar("trackingDeviceId", { length: 100 }), // Para integração futura com telemetria
+  coverPhotoUrl: text("coverPhotoUrl"), // Foto de capa (imagem única do cabeçalho), servida em /api/evidence/:id
   registrationOrigin: mysqlEnum("registrationOrigin", ["manual", "ia"]).default(
     "manual"
   ),
