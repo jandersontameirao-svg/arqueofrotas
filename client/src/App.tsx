@@ -39,6 +39,10 @@ import { VehicleFineDetailPage } from "@/pages/fines/VehicleFineDetailPage";
 import { VehicleAIPage } from "@/pages/vehicles/VehicleAIPage";
 import { NotificationsPage } from "@/pages/notifications/NotificationsPage";
 import { ProjectsPage } from "@/pages/projects/ProjectsPage";
+import { VehicleAccidentsPage } from "@/pages/accidents/VehicleAccidentsPage";
+import { CostsPage } from "@/pages/costs/CostsPage";
+import { AnalyticsPage } from "@/pages/analytics/AnalyticsPage";
+import { ReportsPage } from "@/pages/reports/ReportsPage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth({
@@ -72,6 +76,24 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (user?.role !== "admin") {
+    return <Redirect to="/" />;
+  }
+
+  return <>{children}</>;
+}
+
+function ManagerRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth({ redirectOnUnauthenticated: true });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (user?.role !== "admin" && user?.role !== "gestor_frota") {
     return <Redirect to="/" />;
   }
 
@@ -163,6 +185,28 @@ function AppRoutes() {
             <AdminRoute>
               <UserFormPage />
             </AdminRoute>
+          </Route>
+
+          {/* Sinistros, Custos, Análise, Relatórios - gestor + admin */}
+          <Route path="/accidents">
+            <ManagerRoute>
+              <VehicleAccidentsPage />
+            </ManagerRoute>
+          </Route>
+          <Route path="/costs">
+            <ManagerRoute>
+              <CostsPage />
+            </ManagerRoute>
+          </Route>
+          <Route path="/analytics">
+            <ManagerRoute>
+              <AnalyticsPage />
+            </ManagerRoute>
+          </Route>
+          <Route path="/reports">
+            <ManagerRoute>
+              <ReportsPage />
+            </ManagerRoute>
           </Route>
 
           {/* Projects - Admin only */}

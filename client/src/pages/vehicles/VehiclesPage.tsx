@@ -50,6 +50,7 @@ import { toast } from "sonner";
 type Vehicle = {
   id: number;
   plate: string;
+  fleetNumber: string | null;
   model: string;
   brand: string | null;
   year: number;
@@ -117,6 +118,7 @@ export function VehiclesPage() {
       `veiculos_${new Date().toISOString().split("T")[0]}`,
       [
         { key: "plate", label: "Placa" },
+        { key: "fleetNumber", label: "Nº Viatura" },
         { key: "model", label: "Modelo" },
         { key: "brand", label: "Marca" },
         { key: "year", label: "Ano" },
@@ -165,6 +167,7 @@ export function VehiclesPage() {
       "Relatório de Veículos",
       [
         { key: "plate", label: "Placa", width: 25 },
+        { key: "fleetNumber", label: "Nº Viatura", width: 20 },
         { key: "model", label: "Modelo", width: 35 },
         { key: "brand", label: "Marca", width: 25 },
         { key: "year", label: "Ano", width: 15 },
@@ -186,7 +189,16 @@ export function VehiclesPage() {
       key: "plate",
       header: "Placa",
       sortable: true,
-      cell: row => <span className="font-mono font-medium">{row.plate}</span>,
+      cell: row => (
+        <div>
+          <span className="font-mono font-medium">{row.plate}</span>
+          {row.fleetNumber && (
+            <p className="text-xs text-muted-foreground">
+              Viatura {row.fleetNumber}
+            </p>
+          )}
+        </div>
+      ),
     },
     {
       key: "model",
@@ -366,7 +378,7 @@ export function VehiclesPage() {
         searchable
         onSearchChange={setTableSearch}
         searchPlaceholder="Buscar por placa ou modelo..."
-        searchKeys={["plate", "model", "brand"]}
+        searchKeys={["plate", "fleetNumber", "model", "brand"]}
         onRowClick={row => navigate(`/vehicles/${row.id}`)}
         emptyMessage="Nenhum veículo encontrado"
       />

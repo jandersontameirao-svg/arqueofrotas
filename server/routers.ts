@@ -19,6 +19,7 @@ import { dashboardRouter } from "./routers/dashboard";
 import { vehiclePhotosRouter } from "./routers/vehiclePhotos";
 import { serviceProvidersRouter } from "./routers/serviceProviders";
 import { vehicleFinesRouter } from "./routers/vehicleFines";
+import { vehicleAccidentsRouter } from "./routers/vehicleAccidents";
 import { notificationsRouter } from "./routers/notifications";
 import { vehicleAIRouter } from "./routers/vehicleAI";
 
@@ -28,6 +29,8 @@ import { driverRouter } from "./routers/driver";
 
 import { reportsRouter } from "./routers/reports";
 import { integrationRouter } from "./routers/integration";
+import { costsRouter } from "./routers/costs";
+import { analyticsRouter } from "./routers/analytics";
 
 export const appRouter = router({
   system: systemRouter,
@@ -65,6 +68,9 @@ export const appRouter = router({
   vehiclePhotos: vehiclePhotosRouter,
   serviceProviders: serviceProvidersRouter,
   vehicleFines: vehicleFinesRouter,
+  vehicleAccidents: vehicleAccidentsRouter,
+  costs: costsRouter,
+  analytics: analyticsRouter,
   notifications: notificationsRouter,
   vehicleAI: vehicleAIRouter,
 });

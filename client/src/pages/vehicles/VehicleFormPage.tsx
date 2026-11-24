@@ -20,6 +20,7 @@ import { LABELS, VEHICLE_TYPES, VEHICLE_STATUSES } from "@shared/const";
 
 type VehicleFormData = {
   plate: string;
+  fleetNumber: string;
   model: string;
   brand: string;
   year: number;
@@ -40,6 +41,7 @@ export function VehicleFormPage() {
 
   const [formData, setFormData] = useState<VehicleFormData>({
     plate: "",
+    fleetNumber: "",
     model: "",
     brand: "",
     year: new Date().getFullYear(),
@@ -145,6 +147,7 @@ export function VehicleFormPage() {
     if (vehicle) {
       setFormData({
         plate: vehicle.plate,
+        fleetNumber: vehicle.fleetNumber ?? "",
         model: vehicle.model,
         brand: vehicle.brand ?? "",
         year: vehicle.year,
@@ -189,6 +192,7 @@ export function VehicleFormPage() {
     const data = {
       ...formData,
       plate: formData.plate.toUpperCase().replace(/[^A-Z0-9]/g, ""),
+      fleetNumber: formData.fleetNumber || undefined,
       brand: formData.brand || undefined,
       color: formData.color || undefined,
       chassi: formData.chassi || undefined,
@@ -354,6 +358,17 @@ export function VehicleFormPage() {
               {errors.plate && (
                 <p className="text-sm text-destructive">{errors.plate}</p>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="fleetNumber">Nº da viatura</Label>
+              <Input
+                id="fleetNumber"
+                value={formData.fleetNumber}
+                onChange={e => handleChange("fleetNumber", e.target.value)}
+                placeholder="Ex: 042"
+                maxLength={30}
+              />
             </div>
 
             <div className="space-y-2">

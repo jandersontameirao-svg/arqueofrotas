@@ -133,6 +133,10 @@ export type NotificationType = typeof NOTIFICATION_TYPES[number];
 export const FINE_STATUSES = ['pendente', 'paga', 'recorrida', 'cancelada'] as const;
 export type FineStatus = typeof FINE_STATUSES[number];
 
+// Accident (sinistro) statuses
+export const ACCIDENT_STATUSES = ['aberto', 'em_analise', 'em_reparo', 'encerrado'] as const;
+export type AccidentStatus = typeof ACCIDENT_STATUSES[number];
+
 // Maintenance types
 export const MAINTENANCE_TYPES = ['preventiva', 'corretiva'] as const;
 export type MaintenanceType = typeof MAINTENANCE_TYPES[number];

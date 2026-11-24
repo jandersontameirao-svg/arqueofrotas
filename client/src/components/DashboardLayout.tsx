@@ -38,6 +38,9 @@ import {
   Bell,
   Bot,
   FolderKanban,
+  CarFront,
+  DollarSign,
+  TrendingUp,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -57,6 +60,13 @@ const menuItems = [
   { icon: Wrench, label: "Ordens de Serviço", path: "/service-orders" },
   { icon: Building2, label: "Prestadores", path: "/service-providers" },
   { icon: Receipt, label: "Multas", path: "/fines" },
+];
+
+const managerMenuItems = [
+  { icon: CarFront, label: "Sinistros", path: "/accidents" },
+  { icon: DollarSign, label: "Custos", path: "/costs" },
+  { icon: TrendingUp, label: "Análise", path: "/analytics" },
+  { icon: FileText, label: "Relatórios", path: "/reports" },
 ];
 
 const adminMenuItems = [
@@ -179,8 +189,14 @@ function DashboardLayoutContent({
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const isManager =
+    user?.role === "admin" || user?.role === "gestor_frota";
   const allMenuItems =
-    user?.role === "admin" ? [...menuItems, ...adminMenuItems] : menuItems;
+    user?.role === "admin"
+      ? [...menuItems, ...managerMenuItems, ...adminMenuItems]
+      : isManager
+        ? [...menuItems, ...managerMenuItems]
+        : menuItems;
   const activeMenuItem = allMenuItems.find(item => {
     if (item.path === "/") return location === "/";
     return location.startsWith(item.path);
@@ -283,6 +299,40 @@ function DashboardLayoutContent({
                 );
               })}
             </SidebarMenu>
+
+            {/* Manager menu items (gestor + admin) */}
+            {isManager && (
+              <>
+                <div className="px-4 py-2">
+                  <div className="h-px bg-border" />
+                </div>
+                <SidebarMenu className="px-2 py-1">
+                  {!isCollapsed && (
+                    <p className="px-3 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Gestão
+                    </p>
+                  )}
+                  {managerMenuItems.map(item => {
+                    const isActive = location.startsWith(item.path);
+                    return (
+                      <SidebarMenuItem key={item.path}>
+                        <SidebarMenuButton
+                          isActive={isActive}
+                          onClick={() => setLocation(item.path)}
+                          tooltip={item.label}
+                          className={`h-10 transition-all font-normal`}
+                        >
+                          <item.icon
+                            className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
+                          />
+                          <span>{item.label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </>
+            )}
 
             {/* Admin menu items */}
             {user?.role === "admin" && (

@@ -147,6 +147,11 @@ export function VehicleDetailPage() {
     { enabled: Boolean(id) }
   );
 
+  const { data: accidents } = trpc.vehicleAccidents.listByVehicle.useQuery(
+    { vehicleId: Number(id) },
+    { enabled: Boolean(id) && canEdit }
+  );
+
   const uploadMutation = trpc.vehiclePhotos.upsert.useMutation({
     onSuccess: () => {
       toast.success("Foto enviada com sucesso!");
@@ -343,6 +348,11 @@ export function VehicleDetailPage() {
           <TabsTrigger value="documents">
             Documentos ({documents?.length ?? 0})
           </TabsTrigger>
+          {canEdit && (
+            <TabsTrigger value="accidents">
+              Sinistros ({accidents?.length ?? 0})
+            </TabsTrigger>
+          )}
           <TabsTrigger value="timeline">Histórico</TabsTrigger>
         </TabsList>
 
@@ -357,6 +367,12 @@ export function VehicleDetailPage() {
                   <div>
                     <p className="text-sm text-muted-foreground">Placa</p>
                     <p className="font-mono font-medium">{vehicle.plate}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Nº da viatura</p>
+                    <p className="font-mono font-medium">
+                      {vehicle.fleetNumber ?? "-"}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Tipo</p>
@@ -659,6 +675,56 @@ export function VehicleDetailPage() {
             </DialogContent>
           </Dialog>
         </TabsContent>
+
+        {canEdit && (
+          <TabsContent value="accidents" className="space-y-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Sinistros do veículo</CardTitle>
+                <Button size="sm" onClick={() => navigate("/accidents")}>
+                  Gerenciar sinistros
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {accidents && accidents.length > 0 ? (
+                  accidents.map(a => (
+                    <div
+                      key={a.id}
+                      className="rounded-lg border p-3 flex items-start justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">
+                          {format(new Date(a.accidentDate), "dd/MM/yyyy")} ·{" "}
+                          {a.status}
+                        </p>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {a.description}
+                        </p>
+                        {a.insuranceClaimNumber && (
+                          <p className="text-xs text-muted-foreground">
+                            Sinistro seguradora: {a.insuranceClaimNumber}
+                          </p>
+                        )}
+                      </div>
+                      {(a.finalCost || a.estimatedCost) && (
+                        <span className="text-sm font-medium shrink-0">
+                          {new Intl.NumberFormat("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                          }).format(Number(a.finalCost ?? a.estimatedCost))}
+                        </span>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground py-6 text-center">
+                    Nenhum sinistro registrado para este veículo.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
         <TabsContent value="timeline" className="space-y-4">
           <Card>

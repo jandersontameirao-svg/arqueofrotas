@@ -67,6 +67,7 @@ export const vehiclesRouter = router({
         .select({
           id: vehicles.id,
           plate: vehicles.plate,
+          fleetNumber: vehicles.fleetNumber,
           model: vehicles.model,
           brand: vehicles.brand,
           year: vehicles.year,
@@ -157,6 +158,7 @@ export const vehiclesRouter = router({
         .select({
           id: vehicles.id,
           plate: vehicles.plate,
+          fleetNumber: vehicles.fleetNumber,
           model: vehicles.model,
           brand: vehicles.brand,
           year: vehicles.year,
@@ -194,6 +196,7 @@ export const vehiclesRouter = router({
       z.object({
         statusReason: z.string().trim().min(3).max(1000).optional(),
         plate: z.string().min(1, "Placa é obrigatória").max(10),
+        fleetNumber: z.string().max(30).optional(),
         model: z.string().min(1, "Modelo é obrigatório"),
         brand: z.string().optional(),
         year: z
@@ -269,6 +272,7 @@ export const vehiclesRouter = router({
         id: z.number(),
         statusReason: z.string().trim().min(3).max(1000).optional(),
         plate: z.string().min(1).max(10).optional(),
+        fleetNumber: z.string().max(30).nullable().optional(),
         model: z.string().min(1).optional(),
         brand: z.string().optional(),
         year: z

@@ -42,6 +42,7 @@ export type EntityType =
   | "service_provider"
   | "service_order_approval"
   | "vehicle_fine"
+  | "vehicle_accident"
   | "notification";
 
 interface AuditLogParams {

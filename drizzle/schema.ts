@@ -176,6 +176,7 @@ export type InsertProject = typeof projects.$inferInsert;
 export const vehicles = mysqlTable("vehicles", {
   id: int("id").autoincrement().primaryKey(),
   plate: varchar("plate", { length: 10 }).notNull().unique(),
+  fleetNumber: varchar("fleetNumber", { length: 30 }), // Nº/prefixo da viatura
   model: varchar("model", { length: 100 }).notNull(),
   brand: varchar("brand", { length: 100 }),
   year: int("year").notNull(),
@@ -953,6 +954,66 @@ export const vehicleFinesRelations = relations(vehicleFines, ({ one }) => ({
     relationName: "fineRegisteredBy",
   }),
 }));
+
+// ============================================
+// VEHICLE ACCIDENTS TABLE (Sinistros dos Veículos)
+// ============================================
+
+export const accidentStatusEnum = mysqlEnum("accidentStatus", [
+  "aberto",
+  "em_analise",
+  "em_reparo",
+  "encerrado",
+]);
+
+export const vehicleAccidents = mysqlTable("vehicleAccidents", {
+  id: int("id").autoincrement().primaryKey(),
+  vehicleId: int("vehicleId").notNull(),
+  accidentDate: timestamp("accidentDate").notNull(),
+  location: varchar("location", { length: 500 }),
+  description: text("description").notNull(),
+  severity: severityEnum.default("media").notNull(),
+  status: accidentStatusEnum.default("aberto").notNull(),
+  driverId: int("driverId"), // Motorista no momento do sinistro
+  thirdPartyInvolved: boolean("thirdPartyInvolved").default(false).notNull(),
+  thirdPartyDetails: text("thirdPartyDetails"),
+  insuranceClaimNumber: varchar("insuranceClaimNumber", { length: 100 }), // Nº do sinistro na seguradora
+  estimatedCost: decimal("estimatedCost", { precision: 12, scale: 2 }),
+  finalCost: decimal("finalCost", { precision: 12, scale: 2 }),
+  kmAtAccident: int("kmAtAccident"),
+  observations: text("observations"),
+  registeredById: int("registeredById").notNull(),
+  closedAt: timestamp("closedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  // Exclusão lógica: preserva para auditoria
+  isDeleted: boolean("isDeleted").default(false).notNull(),
+  deletedAt: timestamp("deletedAt"),
+  deletedById: int("deletedById"),
+});
+
+export type VehicleAccident = typeof vehicleAccidents.$inferSelect;
+export type InsertVehicleAccident = typeof vehicleAccidents.$inferInsert;
+
+export const vehicleAccidentsRelations = relations(
+  vehicleAccidents,
+  ({ one }) => ({
+    vehicle: one(vehicles, {
+      fields: [vehicleAccidents.vehicleId],
+      references: [vehicles.id],
+    }),
+    driver: one(users, {
+      fields: [vehicleAccidents.driverId],
+      references: [users.id],
+      relationName: "accidentDriver",
+    }),
+    registeredBy: one(users, {
+      fields: [vehicleAccidents.registeredById],
+      references: [users.id],
+      relationName: "accidentRegisteredBy",
+    }),
+  })
+);
 
 // ============================================
 // APP NOTIFICATIONS TABLE (Notificações Internas)
